@@ -1,0 +1,568 @@
+{
+  "agents": {
+    "comprehensive-analysis-agent": {
+      "name": "comprehensive-analysis-agent",
+      "type": "agent",
+      "description": "Comprehensive Analysis Agent - 综合分析专家，负责整合各层级分析成果形成统一视图",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/comprehensive-analysis-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/comprehensive-analysis-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.092812",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "industry-requirements-agent": {
+      "name": "industry-requirements-agent",
+      "type": "agent",
+      "description": "行业需求代理 - 在端到端业务流程基础上叠加行业特有需求，分析特定行业如何使用Odoo来落地",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/industry-requirements-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/industry-requirements-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.093224",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "solution-architect-agent": {
+      "name": "solution-architect-agent",
+      "type": "agent",
+      "description": "解决方案架构代理 - 设计完整的技术架构方案",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/solution-architect-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/solution-architect-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.093604",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "implementation-guide-agent": {
+      "name": "implementation-guide-agent",
+      "type": "agent",
+      "description": "实施指导代理 - 生成具体的实施指导和配置方案",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/implementation-guide-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/implementation-guide-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.093883",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "business-process-agent": {
+      "name": "business-process-agent",
+      "type": "agent",
+      "description": "业务流程代理 - 分析端到端业务流程和价值链，如procurement-to-pay、order-to-cash等完整业务链",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/business-process-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/business-process-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.094171",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "function-analysis-agent": {
+      "name": "function-analysis-agent",
+      "type": "agent",
+      "description": "功能分析代理 - 提取/总结功能点，基于技术分析的源码实现进行功能层面的抽象和总结",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/function-analysis-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/function-analysis-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.094463",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "trustworthiness-auditor-agent": {
+      "name": "trustworthiness-auditor-agent",
+      "type": "agent",
+      "description": "可信度审计代理 - 验证成果可信度，确保源码可追溯",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/trustworthiness-auditor-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/trustworthiness-auditor-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.094738",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "technical-analysis-agent": {
+      "name": "technical-analysis-agent",
+      "type": "agent",
+      "description": "技术分析代理 - 源码级技术架构和动态行为分析，作为分析体系中最深层的技术探索",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/technical-analysis-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/technical-analysis-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.095448",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "delivery-packager-agent": {
+      "name": "delivery-packager-agent",
+      "type": "agent",
+      "description": "交付包装代理 - 按角色定制交付包",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/delivery-packager-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/delivery-packager-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.095881",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "capability-extractor-agent": {
+      "name": "capability-extractor-agent",
+      "type": "agent",
+      "description": "Capability Extractor Agent - 能力萃取专家，负责将分析成果结构化为能力单元",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/capability-extractor-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/capability-extractor-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.096560",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "human-review-gatekeeper-agent": {
+      "name": "human-review-gatekeeper-agent",
+      "type": "agent",
+      "description": "人工复核代理 - 最终质量门禁，人工审批",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/human-review-gatekeeper-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/human-review-gatekeeper-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.096974",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "ecosystem-discovery-agent": {
+      "name": "ecosystem-discovery-agent",
+      "type": "agent",
+      "description": "Ecosystem Discovery Agent - 生态系统发现专家，负责识别模块生态系统、依赖关系和集成点",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/ecosystem-discovery-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/ecosystem-discovery-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.097621",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "domain-analysis-agent": {
+      "name": "domain-analysis-agent",
+      "type": "agent",
+      "description": "领域分析代理 - 对特定业务领域（如销售、采购、会计、库存）进行总结分析，位于功能分析之上，业务流程之下",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/domain-analysis-agent",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/domain-analysis-agent/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.097999",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    },
+    "solution-builder-master": {
+      "name": "solution-builder-master",
+      "type": "agent",
+      "description": "解决方案构建大师 - 集成自动化解决方案构建、敏捷实施管理和智能变更处理功能",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/solution-builder-master",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/solution-builder-master/AGENT.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.098604",
+      "metadata": {
+        "file_format": "Agent file"
+      }
+    }
+  },
+  "skills": {
+    "intent-understanding": {
+      "name": "intent-understanding",
+      "type": "skill",
+      "description": "Translates natural language requests into structured Capability Twin 6+3+4+N workflows. Use to parse user queries like \"Analyze inventory gaps\" into executable agent plans.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/intent-understanding",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/intent-understanding/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.099133",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "autonomous-evolution": {
+      "name": "autonomous-evolution",
+      "type": "skill",
+      "description": "Enables self-learning and knowledge accumulation for the Capability Twin framework. Use to optimize capability models based on new Odoo 19 discoveries or user feedback.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/autonomous-evolution",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/autonomous-evolution/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.099471",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "knowledge-manager": {
+      "name": "knowledge-manager",
+      "type": "skill",
+      "description": "Manages persistent knowledge units for the Capability Twin framework. Use to store, retrieve, or query analysis results, capability units, and business logic patterns.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/knowledge-manager",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/knowledge-manager/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.099897",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "relationship-analysis": {
+      "name": "relationship-analysis",
+      "type": "skill",
+      "description": "Analyze relationships and dependencies between components, modules, or system elements. Use when mapping dependencies, identifying integration points, or understanding system architecture.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/relationship-analysis",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/relationship-analysis/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.100357",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "configuration-management": {
+      "name": "configuration-management",
+      "type": "skill",
+      "description": "Manage system configuration information at multiple levels (system, skill, project). Use when retrieving, updating, or validating configuration settings, or managing configuration versions and compliance.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/configuration-management",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/configuration-management/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.100788",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "capability-twin-orchestrator": {
+      "name": "capability-twin-orchestrator",
+      "type": "skill",
+      "description": "Orchestrates Odoo 19 functional analysis using the Capability Twin 6+3+4+N framework. Use for comprehensive module analysis, gap identification, and solution design.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/capability-twin-orchestrator",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/capability-twin-orchestrator/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.101211",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "source-traceability": {
+      "name": "source-traceability",
+      "type": "skill",
+      "description": "Verifies that analysis conclusions are directly traceable to Odoo 19 source code. Use to audit technical claims or find the physical location of a business capability in the codebase.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/source-traceability",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/source-traceability/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.101599",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "file-operations": {
+      "name": "file-operations",
+      "type": "skill",
+      "description": "Provide unified file operations including read, write, copy, move, and delete. Use when managing files and directories, or performing file system operations that require standardized approaches.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/file-operations",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/file-operations/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.102078",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "quality-gate": {
+      "name": "quality-gate",
+      "type": "skill",
+      "description": "Verify and control quality standards for code or analysis results. Use when checking code quality, validating compliance, or enforcing quality gates for project deliverables.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/quality-gate",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/quality-gate/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.102512",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "data-exchange": {
+      "name": "data-exchange",
+      "type": "skill",
+      "description": "Handle import, export, and conversion of various data formats (JSON, XML, CSV, YAML, etc.). Use when processing data files, converting formats, or managing data exchange between systems.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/data-exchange",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/data-exchange/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.102954",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "documentation-miner": {
+      "name": "documentation-miner",
+      "type": "skill",
+      "description": "Extracts official Odoo usage patterns from documentation. Use to find standard functional workflows (e.g., \"MTO flow\", \"3-way matching\") to enrich scenario solutions.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/documentation-miner",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/documentation-miner/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.103387",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "template-processor": {
+      "name": "template-processor",
+      "type": "skill",
+      "description": "Process various template formats, supporting rendering, validation, and conversion. Use when working with template files that need to be processed with context data, validated, or converted between formats.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/template-processor",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/template-processor/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.103795",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "context-memory-manager": {
+      "name": "context-memory-manager",
+      "type": "skill",
+      "description": "Manages the framework's memory layers (Working, Episodic, Semantic) based on OpenClaw practices. Use to persist facts, recall usage patterns, or snapshot run states.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/context-memory-manager",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/context-memory-manager/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.104186",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "obsidian-bases": {
+      "name": "obsidian-bases",
+      "type": "skill",
+      "description": "Create and edit Obsidian Bases (.base files) with views, filters, formulas, and summaries. Use when working with .base files, creating database-like views of notes, or when the user mentions Bases, table views, card views, filters, or formulas in Obsidian.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/obsidian-bases",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/obsidian-bases/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.104834",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "intent-to-action-mapper": {
+      "name": "intent-to-action-mapper",
+      "type": "skill",
+      "description": "Intent to action mapping system that converts user intents into specific actions",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/intent-to-action-mapper",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/intent-to-action-mapper/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.105229",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "cache-management": {
+      "name": "cache-management",
+      "type": "skill",
+      "description": "Manage various types of caching in the system including memory, file, and distributed caches. Use when storing, retrieving, or managing cached data, or handling cache strategies and performance optimization.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/cache-management",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/cache-management/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.105629",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "generic-analyzer": {
+      "name": "generic-analyzer",
+      "type": "skill",
+      "description": "Generic analyzer for performing various types of analysis (technical, ecosystem, domain, business process, etc.) using parameterized templates. Use when conducting multi-level analysis of code, systems, or business processes across different domains.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/generic-analyzer",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/generic-analyzer/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.106052",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "json-canvas": {
+      "name": "json-canvas",
+      "type": "skill",
+      "description": "Create and edit JSON Canvas files (.canvas) with nodes, edges, groups, and connections. Use when working with .canvas files, creating visual canvases, mind maps, flowcharts, or when the user mentions Canvas files in Obsidian.",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/json-canvas",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/json-canvas/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.106525",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    },
+    "enhanced-intent-understanding": {
+      "name": "enhanced-intent-understanding",
+      "type": "skill",
+      "description": "Enhanced intent understanding skill with contextual awareness and confidence scoring",
+      "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/enhanced-intent-understanding",
+      "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/enhanced-intent-understanding/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "registered_at": "2026-02-04T14:25:39.106963",
+      "metadata": {
+        "file_format": "Skill file"
+      }
+    }
+  },
+  "capabilities": {}
+}
