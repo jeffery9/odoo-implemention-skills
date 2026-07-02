@@ -3,7 +3,7 @@
     "comprehensive-analysis-agent": {
       "name": "comprehensive-analysis-agent",
       "type": "agent",
-      "description": "Comprehensive Analysis Agent - 综合分析专家，负责整合各层级分析成果形成统一视图",
+      "description": "Capability unit: comprehensive-analysis-agent",
       "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/comprehensive-analysis-agent",
       "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/comprehensive-analysis-agent/AGENT.md",
       "allowed_tools": [
@@ -12,7 +12,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.092812",
+      "registered_at": "2026-02-27T23:15:36.405260",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -29,7 +29,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.093224",
+      "registered_at": "2026-02-27T23:15:36.405753",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -46,7 +46,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.093604",
+      "registered_at": "2026-02-27T23:15:36.406197",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -63,7 +63,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.093883",
+      "registered_at": "2026-02-27T23:15:36.406479",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -80,7 +80,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.094171",
+      "registered_at": "2026-02-27T23:15:36.406765",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -97,7 +97,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.094463",
+      "registered_at": "2026-02-27T23:15:36.407014",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -114,7 +114,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.094738",
+      "registered_at": "2026-02-27T23:15:36.407170",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -131,7 +131,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.095448",
+      "registered_at": "2026-02-27T23:15:36.407804",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -148,7 +148,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.095881",
+      "registered_at": "2026-02-27T23:15:36.408186",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -156,7 +156,7 @@
     "capability-extractor-agent": {
       "name": "capability-extractor-agent",
       "type": "agent",
-      "description": "Capability Extractor Agent - 能力萃取专家，负责将分析成果结构化为能力单元",
+      "description": "Capability unit: capability-extractor-agent",
       "path": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/capability-extractor-agent",
       "file": "/Users/jeffery/odoo19-study/CAPABILITY_TWIN/agents/capability-extractor-agent/AGENT.md",
       "allowed_tools": [
@@ -165,7 +165,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.096560",
+      "registered_at": "2026-02-27T23:15:36.408539",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -182,7 +182,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.096974",
+      "registered_at": "2026-02-27T23:15:36.408904",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -199,7 +199,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.097621",
+      "registered_at": "2026-02-27T23:15:36.409418",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -216,7 +216,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.097999",
+      "registered_at": "2026-02-27T23:15:36.409863",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -233,7 +233,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.098604",
+      "registered_at": "2026-02-27T23:15:36.410391",
       "metadata": {
         "file_format": "Agent file"
       }
@@ -252,7 +252,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.099133",
+      "registered_at": "2026-02-27T23:15:36.410911",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -269,7 +269,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.099471",
+      "registered_at": "2026-02-27T23:15:36.411279",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -286,7 +286,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.099897",
+      "registered_at": "2026-02-27T23:15:36.411674",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -303,7 +303,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.100357",
+      "registered_at": "2026-02-27T23:15:36.412086",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -320,7 +320,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.100788",
+      "registered_at": "2026-02-27T23:15:36.412511",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -337,7 +337,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.101211",
+      "registered_at": "2026-02-27T23:15:36.412891",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -354,7 +354,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.101599",
+      "registered_at": "2026-02-27T23:15:36.413234",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -371,7 +371,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.102078",
+      "registered_at": "2026-02-27T23:15:36.413580",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -388,7 +388,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.102512",
+      "registered_at": "2026-02-27T23:15:36.413971",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -405,7 +405,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.102954",
+      "registered_at": "2026-02-27T23:15:36.414395",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -422,7 +422,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.103387",
+      "registered_at": "2026-02-27T23:15:36.414784",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -439,7 +439,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.103795",
+      "registered_at": "2026-02-27T23:15:36.415174",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -456,7 +456,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.104186",
+      "registered_at": "2026-02-27T23:15:36.415560",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -473,7 +473,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.104834",
+      "registered_at": "2026-02-27T23:15:36.416071",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -490,7 +490,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.105229",
+      "registered_at": "2026-02-27T23:15:36.416459",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -507,7 +507,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.105629",
+      "registered_at": "2026-02-27T23:15:36.416849",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -524,7 +524,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.106052",
+      "registered_at": "2026-02-27T23:15:36.417234",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -541,7 +541,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.106525",
+      "registered_at": "2026-02-27T23:15:36.417688",
       "metadata": {
         "file_format": "Skill file"
       }
@@ -558,7 +558,7 @@
         "Glob",
         "Bash"
       ],
-      "registered_at": "2026-02-04T14:25:39.106963",
+      "registered_at": "2026-02-27T23:15:36.418096",
       "metadata": {
         "file_format": "Skill file"
       }

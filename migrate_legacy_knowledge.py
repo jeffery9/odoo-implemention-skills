@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-PROJECT_ROOT = Path("/Users/jeffery/odoo19-study")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 KB_MEM_DIR = PROJECT_ROOT / "kb" / "mem"
 FACTS_FILE = KB_MEM_DIR / "long_term_facts.jsonl"
 PATTERNS_FILE = KB_MEM_DIR / "usage_patterns.jsonl"

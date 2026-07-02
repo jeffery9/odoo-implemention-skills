@@ -153,12 +153,17 @@ Agent("technical-analysis-agent", prompt="""
 
 ## 📊 专业分析逻辑
 
-### 1. 通用技术分析算法
+### 1. 通用技术分析算法 (V3.1 增强)
 ```python
 def perform_technical_analysis(self, target_module, **params):
     """
     代理的专业技术分析算法
     """
+    # 核心优势点: 测试驱动意图挖掘 (Test-Driven Intent Mining)
+    # - 扫描 tests/ 目录，将测试用例还原为“成功业务场景”
+    # - 识别 assertRaises 等异常捕获逻辑，提取系统的硬性业务准则
+    test_mining = self._mine_test_scenarios(target_module)
+
     # 专业技能1: 源码架构分析
     source_architecture = self._analyze_source_architecture(target_module)
 
@@ -167,6 +172,7 @@ def perform_technical_analysis(self, target_module, **params):
 
     # 专业技能3: 工作流分析
     workflow_analysis = self._analyze_workflows(target_module)
+```
 
     # 专业技能4: 报告分析
     report_analysis = self._analyze_reports(target_module)

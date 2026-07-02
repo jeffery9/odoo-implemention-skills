@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Base paths
-PROJECT_ROOT = Path("/Users/jeffery/odoo19-study")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_ROOT = PROJECT_ROOT / "CAPABILITY_TWIN"
 AGENTS_DIR = FRAMEWORK_ROOT / "agents"
 SKILLS_DIR = FRAMEWORK_ROOT / "skills"

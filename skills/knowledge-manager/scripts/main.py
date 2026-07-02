@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Knowledge Manager Skill 主执行文件 - 使用 JSONL 格式
+Knowledge Manager Skill 主执行文件
 """
 
 import json
@@ -9,7 +9,7 @@ import os
 import time
 import hashlib
 import tempfile
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from pathlib import Path
 from datetime import datetime
 
@@ -17,121 +17,85 @@ from datetime import datetime
 class KnowledgeManager:
     """知识管理器主类"""
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self):
         self.supported_operations = [
             "store", "retrieve", "update", "delete",
             "cache_management", "lifecycle_management"
         ]
-        
-        # Use provided base_dir or default to project-relative 'kb/mem'
-        if base_dir:
-            self.cache_dir = Path(base_dir)
-        else:
-            # Try to find project root or use current directory/kb/mem
-            self.cache_dir = Path(os.getcwd()) / "kb" / "mem"
-            
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.index_file = self.cache_dir / "knowledge_index.jsonl"
+        self.cache_dir = Path(tempfile.gettempdir()) / "knowledge_base"
+        self.cache_dir.mkdir(exist_ok=True)
+        self.index_file = self.cache_dir / "knowledge_index.json"
         self._load_index()
 
     def _load_index(self):
-        """加载知识索引 (JSONL 格式)"""
-        self.knowledge_index = {}
+        """加载知识索引"""
         if self.index_file.exists():
             try:
                 with open(self.index_file, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        if line.strip():
-                            entry = json.loads(line)
-                            # 假设 JSONL 的每一行是一个包含 id 的 metadata 对象
-                            if "id" in entry:
-                                self.knowledge_index[entry["id"]] = entry
+                    self.knowledge_index = json.load(f)
             except Exception:
-                pass
+                self.knowledge_index = {}
+        else:
+            self.knowledge_index = {}
 
     def _save_index(self):
-        """保存知识索引 (重写为 JSONL)"""
+        """保存知识索引"""
         try:
             with open(self.index_file, 'w', encoding='utf-8') as f:
-                for metadata in self.knowledge_index.values():
-                    f.write(json.dumps(metadata, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+                json.dump(self.knowledge_index, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            pass  # 忽略索引保存错误
 
     def _generate_knowledge_id(self, knowledge_key: str, params: Dict) -> str:
         """生成知识标识符"""
         key_data = f"{knowledge_key}_{json.dumps(params, sort_keys=True)}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
-    def _serialize_knowledge(self, knowledge_data: Any) -> Any:
-        """返回原始数据，由存储层处理序列化"""
-        return knowledge_data
+    def _serialize_knowledge(self, knowledge_data: Any) -> str:
+        """序列化知识数据"""
+        if isinstance(knowledge_data, str):
+            return knowledge_data
+        return json.dumps(knowledge_data, ensure_ascii=False)
 
-    def _deserialize_knowledge(self, serialized_data: Any) -> Any:
+    def _deserialize_knowledge(self, serialized_data: str) -> Any:
         """反序列化知识数据"""
-        if isinstance(serialized_data, str):
-            try:
-                return json.loads(serialized_data)
-            except Exception:
-                return serialized_data
-        return serialized_data
-
-    def _calculate_data_hash(self, data: Any) -> str:
-        """计算数据摘要"""
-        s = data if isinstance(data, str) else json.dumps(data, sort_keys=True)
-        return hashlib.sha256(s.encode()).hexdigest()
-
-    def _persist_knowledge(self, knowledge_id: str, data: Any, metadata: Dict) -> bool:
-        """持久化存储知识 (JSONL 格式)"""
         try:
-            # 1. 存储独立的 .jsonl 文件
-            knowledge_file = self.cache_dir / f"{knowledge_id}.jsonl"
-            content = {"data": data, "metadata": metadata}
-            with open(knowledge_file, 'w', encoding='utf-8') as f:
-                f.write(json.dumps(content, ensure_ascii=False) + "\n")
+            return json.loads(serialized_data)
+        except Exception:
+            return serialized_data
 
-            # 2. 如果包含“人话”洞察，同步追加到全局长效事实库
-            tags = metadata.get("tags", [])
-            if "human_insight" in tags:
-                wisdom_file = self.cache_dir / "business_wisdom.jsonl"
-                wisdom_entry = {
-                    "module": metadata.get("module"),
-                    "insight": data.get("human_insight", {}).get("business_intent", "Unknown Capability"),
-                    "value": data.get("human_insight", {}).get("value_to_owner", ""),
-                    "id": knowledge_id,
-                    "ts": datetime.now().isoformat()
-                }
-                with open(wisdom_file, 'a', encoding='utf-8') as wf:
-                    wf.write(json.dumps(wisdom_entry, ensure_ascii=False) + "\n")
-            
-            if any(t in tags for t in ["human_insight", "capability_unit"]):
-                global_facts = self.cache_dir / "long_term_facts.jsonl"
-                global_entry = {
-                    "key": metadata.get("key"),
-                    "value": data,
-                    "metadata": metadata,
-                    "timestamp": datetime.now().isoformat()
-                }
-                with open(global_facts, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(global_entry, ensure_ascii=False) + "\n")
+    def _calculate_data_hash(self, data: str) -> str:
+        """计算数据摘要"""
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    def _persist_knowledge(self, knowledge_id: str, serialized_data: str, metadata: Dict) -> bool:
+        """持久化存储知识"""
+        try:
+            # 存储知识数据
+            knowledge_file = self.cache_dir / f"{knowledge_id}.json"
+            knowledge_content = {
+                "data": serialized_data,
+                "metadata": metadata
+            }
+            with open(knowledge_file, 'w', encoding='utf-8') as f:
+                json.dump(knowledge_content, f, ensure_ascii=False, indent=2)
 
             # 更新索引
             self.knowledge_index[knowledge_id] = metadata
             self._save_index()
+
             return True
-        except Exception:
+        except Exception as e:
             return False
 
     def _load_knowledge(self, knowledge_id: str) -> Any:
         """加载知识数据"""
         try:
-            knowledge_file = self.cache_dir / f"{knowledge_id}.jsonl"
+            knowledge_file = self.cache_dir / f"{knowledge_id}.json"
             if knowledge_file.exists():
                 with open(knowledge_file, 'r', encoding='utf-8') as f:
-                    line = f.readline()
-                    if line:
-                        content = json.loads(line)
-                        return self._deserialize_knowledge(content["data"])
+                    content = json.load(f)
+                return self._deserialize_knowledge(content["data"])
             return None
         except Exception:
             return None
@@ -151,6 +115,7 @@ class KnowledgeManager:
 
     def _parse_search_query(self, search_query: str) -> List[str]:
         """解析搜索查询"""
+        # 简单的关键词分割
         return [word.strip() for word in search_query.split() if word.strip()]
 
     def _query_index(self, parsed_query: List[str], params: Dict) -> List[Dict]:
@@ -159,25 +124,26 @@ class KnowledgeManager:
         tags_filter = params.get("tags", [])
 
         for knowledge_id, metadata in self.knowledge_index.items():
+            # 检查标签过滤
             if tags_filter:
                 knowledge_tags = metadata.get("tags", [])
                 if not any(tag in knowledge_tags for tag in tags_filter):
                     continue
 
+            # 检查过期时间
             created_at = metadata.get("created_at")
             ttl = metadata.get("ttl", 86400)
             if created_at:
-                try:
-                    created_timestamp = time.mktime(datetime.fromisoformat(created_at).timetuple())
-                    if time.time() > created_timestamp + ttl:
-                        continue
-                except Exception:
-                    pass
+                created_timestamp = time.mktime(datetime.fromisoformat(created_at).timetuple())
+                if time.time() > created_timestamp + ttl:
+                    continue  # 已过期，跳过
 
+            # 计算相关性评分
             score = 0
             knowledge_key = metadata.get("key", "")
             knowledge_tags = metadata.get("tags", [])
 
+            # 关键词匹配评分
             for query_word in parsed_query:
                 if query_word.lower() in knowledge_key.lower():
                     score += 2
@@ -196,22 +162,32 @@ class KnowledgeManager:
 
     def _rank_results(self, candidates: List[Dict], parsed_query: List[str]) -> List[Dict]:
         """对结果进行排序"""
+        # 按相关性评分排序
         return sorted(candidates, key=lambda x: x["score"], reverse=True)
 
     def _list_cache_items(self) -> List[Dict]:
         """列出所有缓存条目"""
-        return [{"id": k, "metadata": v} for k, v in self.knowledge_index.items()]
+        items = []
+        for knowledge_id, metadata in self.knowledge_index.items():
+            items.append({
+                "id": knowledge_id,
+                "metadata": metadata
+            })
+        return items
 
     def _remove_cache_item(self, knowledge_id: str) -> bool:
         """删除缓存条目"""
         try:
-            knowledge_file = self.cache_dir / f"{knowledge_id}.jsonl"
+            # 删除知识文件
+            knowledge_file = self.cache_dir / f"{knowledge_id}.json"
             if knowledge_file.exists():
                 knowledge_file.unlink()
 
+            # 从索引中移除
             if knowledge_id in self.knowledge_index:
                 del self.knowledge_index[knowledge_id]
                 self._save_index()
+
             return True
         except Exception:
             return False
@@ -222,12 +198,14 @@ class KnowledgeManager:
         items_to_remove = []
 
         if strategy == "lru":
+            # 按最后访问时间排序，删除最久未访问的
             sorted_items = sorted(
                 all_items,
-                key=lambda x: x["metadata"].get("last_accessed", 0)
+                key=lambda x: x["metadata"].get("last_accessed", x["metadata"].get("created_at", 0))
             )
             items_to_remove = sorted_items[:params.get("cleanup_count", 100)]
         elif strategy == "expired":
+            # 删除已过期的条目
             current_time = time.time()
             items_to_remove = [
                 item for item in all_items
@@ -235,7 +213,16 @@ class KnowledgeManager:
                    time.mktime(datetime.fromisoformat(item["metadata"]["created_at"]).timetuple()) +
                    item["metadata"].get("ttl", 86400) < current_time
             ]
+        elif strategy == "size_based":
+            # 基于大小清理
+            total_size = sum(item["metadata"].get("size_bytes", 0) for item in all_items)
+            max_size = params.get("max_size_mb", 1024) * 1024 * 1024
+            if total_size > max_size:
+                # 删除最少访问的条目
+                sorted_items = sorted(all_items, key=lambda x: x["metadata"].get("access_count", 0))
+                items_to_remove = sorted_items[:int(len(sorted_items) * 0.1)]  # 删除10%
 
+        # 执行删除
         removed_count = 0
         space_freed = 0
         for item in items_to_remove:
@@ -250,13 +237,43 @@ class KnowledgeManager:
             "space_freed_mb": space_freed / (1024 * 1024)
         }
 
-    def execute(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """执行知识管理操作"""
-        operation = config.get("operation", "retrieve")
-        base_dir = config.get("base_dir")
+    def _cache_statistics(self) -> Dict:
+        """缓存统计信息"""
+        all_items = self._list_cache_items()
+        total_items = len(all_items)
+        total_size = sum(item["metadata"].get("size_bytes", 0) for item in all_items)
+        total_accesses = sum(item["metadata"].get("access_count", 0) for item in all_items)
 
-        if base_dir:
-            self.__init__(base_dir=base_dir)
+        # 计算平均访问次数
+        avg_accesses = total_accesses / total_items if total_items > 0 else 0
+
+        # 找到最常访问的条目
+        if all_items:
+            most_accessed = max(all_items, key=lambda x: x["metadata"].get("access_count", 0))
+            least_accessed = min(all_items, key=lambda x: x["metadata"].get("access_count", 0))
+        else:
+            most_accessed = least_accessed = None
+
+        return {
+            "total_items": total_items,
+            "total_size_mb": total_size / (1024 * 1024),
+            "total_accesses": total_accesses,
+            "average_accesses_per_item": avg_accesses,
+            "most_accessed_item": most_accessed["metadata"]["key"] if most_accessed else None,
+            "least_accessed_item": least_accessed["metadata"]["key"] if least_accessed else None
+        }
+
+    def execute(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        执行知识管理操作
+
+        Args:
+            config: 操作配置
+
+        Returns:
+            操作结果
+        """
+        operation = config.get("operation", "retrieve")
 
         if operation not in self.supported_operations:
             raise ValueError(f"不支持的操作类型: {operation}")
@@ -284,9 +301,13 @@ class KnowledgeManager:
         if not knowledge_key or knowledge_data is None:
             raise ValueError("缺少必需的参数: knowledge_key 或 knowledge_data")
 
+        # 生成知识标识符
         knowledge_id = self._generate_knowledge_id(knowledge_key, config)
+
+        # 序列化知识数据
         serialized_data = self._serialize_knowledge(knowledge_data)
 
+        # 创建元数据
         metadata = {
             "id": knowledge_id,
             "key": knowledge_key,
@@ -300,18 +321,30 @@ class KnowledgeManager:
             "hash": self._calculate_data_hash(serialized_data)
         }
 
+        # 存储知识
         storage_result = self._persist_knowledge(knowledge_id, serialized_data, metadata)
 
         return {
             "metadata": {
                 "skill_name": "knowledge-manager",
                 "operation": "store",
+                "execution_time": datetime.now().isoformat(),
                 "status": "success" if storage_result else "failed"
             },
             "results": {
+                "operation_result": "知识存储成功" if storage_result else "知识存储失败",
                 "knowledge_id": knowledge_id,
-                "affected_items": 1 if storage_result else 0
-            }
+                "affected_items": 1 if storage_result else 0,
+                "performance_metrics": {
+                    "execution_time_ms": 0,  # 简化处理
+                    "memory_usage_mb": len(serialized_data) / (1024 * 1024)
+                }
+            },
+            "knowledge_items": [{
+                "key": knowledge_key,
+                "data": knowledge_data,
+                "metadata": metadata
+            }]
         }
 
     def _retrieve_knowledge(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -320,14 +353,21 @@ class KnowledgeManager:
         tags = config.get("tags", [])
         max_results = config.get("max_results", 10)
 
+        # 解析搜索查询
         parsed_query = self._parse_search_query(search_query)
+
+        # 查询索引获取候选条目
         candidates = self._query_index(parsed_query, {"tags": tags})
+
+        # 计算相关性评分
         ranked_results = self._rank_results(candidates, parsed_query)
 
+        # 加载知识数据
         knowledge_items = []
         for item in ranked_results[:max_results]:
             knowledge_data = self._load_knowledge(item["id"])
             if knowledge_data is not None:
+                # 更新访问计数
                 self._update_access_count(item["id"])
                 knowledge_items.append({
                     "key": item["key"],
@@ -337,7 +377,25 @@ class KnowledgeManager:
                 })
 
         return {
-            "metadata": {"skill_name": "knowledge-manager", "operation": "retrieve", "status": "success"},
+            "metadata": {
+                "skill_name": "knowledge-manager",
+                "operation": "retrieve",
+                "execution_time": datetime.now().isoformat(),
+                "status": "success"
+            },
+            "results": {
+                "operation_result": f"检索到 {len(knowledge_items)} 个知识条目",
+                "affected_items": len(knowledge_items),
+                "performance_metrics": {
+                    "execution_time_ms": 0,  # 简化处理
+                    "memory_usage_mb": sum(item["metadata"].get("size_bytes", 0) for item in knowledge_items) / (1024 * 1024)
+                },
+                "retrieval_stats": {
+                    "candidates_evaluated": len(candidates),
+                    "results_returned": len(knowledge_items),
+                    "total_found": len(ranked_results)
+                }
+            },
             "knowledge_items": knowledge_items
         }
 
@@ -345,60 +403,191 @@ class KnowledgeManager:
         """更新知识"""
         knowledge_key = config.get("knowledge_key")
         knowledge_data = config.get("knowledge_data")
-        
-        existing_items = [item for item in self._list_cache_items() if item["metadata"].get("key") == knowledge_key]
+        tags = config.get("tags", [])
+
+        if not knowledge_key or knowledge_data is None:
+            raise ValueError("缺少必需的参数: knowledge_key 或 knowledge_data")
+
+        # 查找现有的知识条目
+        existing_items = [
+            item for item in self._list_cache_items()
+            if item["metadata"].get("key") == knowledge_key
+        ]
+
         if not existing_items:
             raise ValueError(f"未找到知识条目: {knowledge_key}")
 
+        # 更新第一个匹配的条目
         existing_item = existing_items[0]
         knowledge_id = existing_item["id"]
+
+        # 序列化新数据
         serialized_data = self._serialize_knowledge(knowledge_data)
 
+        # 更新元数据
         metadata = existing_item["metadata"].copy()
         metadata["updated_at"] = datetime.now().isoformat()
         metadata["size_bytes"] = len(serialized_data)
         metadata["hash"] = self._calculate_data_hash(serialized_data)
+        if tags:
+            metadata["tags"] = list(set(metadata.get("tags", []) + tags))  # 合并标签并去重
 
+        # 存储更新后的知识
         update_result = self._persist_knowledge(knowledge_id, serialized_data, metadata)
-        return {"metadata": {"skill_name": "knowledge-manager", "operation": "update", "status": "success" if update_result else "failed"}, "results": {"knowledge_id": knowledge_id}}
+
+        return {
+            "metadata": {
+                "skill_name": "knowledge-manager",
+                "operation": "update",
+                "execution_time": datetime.now().isoformat(),
+                "status": "success" if update_result else "failed"
+            },
+            "results": {
+                "operation_result": "知识更新成功" if update_result else "知识更新失败",
+                "knowledge_id": knowledge_id,
+                "affected_items": 1 if update_result else 0,
+                "performance_metrics": {
+                    "execution_time_ms": 0,
+                    "memory_usage_mb": len(serialized_data) / (1024 * 1024)
+                }
+            },
+            "knowledge_items": [{
+                "key": knowledge_key,
+                "data": knowledge_data,
+                "metadata": metadata
+            }]
+        }
 
     def _delete_knowledge(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """删除知识"""
         knowledge_key = config.get("knowledge_key")
-        items_to_delete = [item for item in self._list_cache_items() if item["metadata"].get("key") == knowledge_key]
+
+        if not knowledge_key:
+            raise ValueError("缺少必需的参数: knowledge_key")
+
+        # 查找要删除的知识条目
+        items_to_delete = [
+            item for item in self._list_cache_items()
+            if item["metadata"].get("key") == knowledge_key
+        ]
+
         deleted_count = 0
         for item in items_to_delete:
             if self._remove_cache_item(item["id"]):
                 deleted_count += 1
-        return {"metadata": {"skill_name": "knowledge-manager", "operation": "delete", "status": "success"}, "results": {"affected_items": deleted_count}}
+
+        return {
+            "metadata": {
+                "skill_name": "knowledge-manager",
+                "operation": "delete",
+                "execution_time": datetime.now().isoformat(),
+                "status": "success"
+            },
+            "results": {
+                "operation_result": f"成功删除 {deleted_count} 个知识条目",
+                "affected_items": deleted_count,
+                "performance_metrics": {
+                    "execution_time_ms": 0,
+                    "memory_usage_mb": 0
+                }
+            },
+            "knowledge_items": []
+        }
 
     def _manage_cache(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """管理缓存"""
         action = config.get("action", "stats")
+        strategy = config.get("strategy", "lru")
+
         if action == "stats":
-            return {"metadata": {"skill_name": "knowledge-manager", "status": "success"}, "results": {"total_items": len(self.knowledge_index)}}
+            stats = self._cache_statistics()
+            result = {
+                "metadata": {
+                    "skill_name": "knowledge-manager",
+                    "operation": "cache_management",
+                    "execution_time": datetime.now().isoformat(),
+                    "status": "success"
+                },
+                "results": {
+                    "operation_result": "缓存统计完成",
+                    "cache_stats": stats,
+                    "performance_metrics": {
+                        "execution_time_ms": 0,
+                        "memory_usage_mb": stats.get("total_size_mb", 0)
+                    }
+                },
+                "knowledge_items": []
+            }
         else:
-            cleanup_result = self._cleanup_cache(config.get("strategy", "lru"), config)
-            return {"metadata": {"skill_name": "knowledge-manager", "status": "success"}, "results": cleanup_result}
+            cleanup_result = self._cleanup_cache(strategy, config)
+            result = {
+                "metadata": {
+                    "skill_name": "knowledge-manager",
+                    "operation": "cache_management",
+                    "execution_time": datetime.now().isoformat(),
+                    "status": "success"
+                },
+                "results": {
+                    "operation_result": f"缓存管理完成: {cleanup_result['action']}",
+                    "cache_management_result": cleanup_result,
+                    "performance_metrics": {
+                        "execution_time_ms": 0,
+                        "memory_usage_mb": cleanup_result.get("space_freed_mb", 0)
+                    }
+                },
+                "knowledge_items": []
+            }
+
+        return result
 
     def _manage_lifecycle(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """管理知识生命周期"""
+        # 简化的生命周期管理，主要是清理过期条目
         cleanup_result = self._cleanup_cache("expired", {})
-        return {"metadata": {"skill_name": "knowledge-manager", "status": "success"}, "results": cleanup_result}
+
+        return {
+            "metadata": {
+                "skill_name": "knowledge-manager",
+                "operation": "lifecycle_management",
+                "execution_time": datetime.now().isoformat(),
+                "status": "success"
+            },
+            "results": {
+                "operation_result": "生命周期管理完成",
+                "lifecycle_result": cleanup_result,
+                "performance_metrics": {
+                    "execution_time_ms": 0,
+                    "memory_usage_mb": cleanup_result.get("space_freed_mb", 0)
+                }
+            },
+            "knowledge_items": []
+        }
 
 
 def main():
     """主函数"""
     import sys
+
     if len(sys.argv) < 2:
+        print("Usage: python main.py <config_json>")
         sys.exit(1)
+
     try:
         config = json.loads(sys.argv[1])
-        manager = KnowledgeManager(base_dir=config.get("base_dir"))
+        manager = KnowledgeManager()
         result = manager.execute(config)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as e:
-        print(json.dumps({"status": "failed", "error": str(e)}, ensure_ascii=False))
+        error_result = {
+            "metadata": {
+                "skill_name": "knowledge-manager",
+                "status": "failed",
+                "error": str(e),
+                "execution_time": datetime.now().isoformat()
+            },
+            "error_details": f"执行知识管理操作时发生错误: {str(e)}"
+        }
+        print(json.dumps(error_result, ensure_ascii=False, indent=2))
         sys.exit(1)
 
 
