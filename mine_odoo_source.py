@@ -2,16 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-Capability Twin 3.5 - High-Value Knowledge Crawler
-Continuous mining with 'Human Insight' focus and skip logic.
+Capability Twin 3.5 - High-Value Knowledge Crawler (Parallel Mesh Edition)
+Continuous mining with 'Human Insight' focus, thread-safe logging, and parallel execution.
 """
 
 import sys, os, json, logging
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Standard framework paths
-PROJECT_ROOT = Path("/Users/jeffery/odoo19-study")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT / "CAPABILITY_TWIN/scripts"))
 sys.path.append(str(PROJECT_ROOT / "CAPABILITY_TWIN/skills/capability-twin-orchestrator/scripts"))
 
@@ -22,7 +24,7 @@ except ImportError:
     print("Error: Framework components not found.")
     sys.exit(1)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class ContinuousMiner:
@@ -31,24 +33,56 @@ class ContinuousMiner:
         self.kb_mem = self.config.get_kb_path()
         self.status_file = self.kb_mem / "mining_status.jsonl"
         self.source_path = self.config.get_odoo_source_path()
+        self.lock = threading.Lock()
 
     def get_mined_set(self):
-        """Read set of already successfully mined modules."""
+        """Thread-safe read set of already successfully mined modules."""
         mined = set()
-        if self.status_file.exists():
-            with open(self.status_file, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        entry = json.loads(line)
-                        if entry.get("status") == "completed":
-                            mined.add(entry.get("module"))
+        with self.lock:
+            if self.status_file.exists():
+                with open(self.status_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            entry = json.loads(line)
+                            if entry.get("status") == "completed":
+                                mined.add(entry.get("module"))
         return mined
 
     def mark_status(self, module, status):
-        with open(self.status_file, 'a') as f:
-            f.write(json.dumps({"module": module, "status": status, "ts": datetime.now().isoformat()}) + "\n")
+        """Thread-safe append status to status log."""
+        with self.lock:
+            self.status_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.status_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({"module": module, "status": status, "ts": datetime.now().isoformat()}) + "\n")
 
-    def run(self, limit=10):
+    def _mine_module(self, module):
+        """Task executor for mining a single Odoo module."""
+        logger.info(f"🚀 Starting High-Insight Parallel Mining: {module}")
+        
+        # Trigger 6+3.5+4+N Workflow
+        params = {
+            "target_module": module,
+            "workflow_type": "full_analysis",
+            "detail_level": "comprehensive",
+            "instruction_focus": "HUMAN_INSIGHT_FIRST" # Focus on industrial & financial compliance
+        }
+        
+        try:
+            result = execute_skill(params)
+            if result and result.get("status") == "completed":
+                self.mark_status(module, "completed")
+                logger.info(f"✅ Successfully mined {module}. Insight stored in kb/mem/.")
+                return module, "completed"
+            else:
+                self.mark_status(module, "failed")
+                logger.warning(f"⚠️ Mining failed for {module}")
+                return module, "failed"
+        except Exception as e:
+            logger.error(f"❌ Exception occurred during mining of {module}: {e}")
+            self.mark_status(module, "error")
+            return module, "error"
+
+    def run(self, limit=5, max_workers=4):
         mined_set = self.get_mined_set()
         
         # 1. Discover all modules
@@ -61,33 +95,31 @@ class ContinuousMiner:
         priority_prefixes = ['stock', 'mrp', 'sale', 'purchase', 'account', 'product']
         all_modules.sort(key=lambda x: (not any(x.startswith(p) for p in priority_prefixes), x))
 
-        count = 0
-        for module in all_modules:
-            if count >= limit: break
-            if module in mined_set: continue
+        # Filter modules that need mining
+        modules_to_mine = [m for m in all_modules if m not in mined_set][:limit]
+        
+        if not modules_to_mine:
+            logger.info("🎉 All discovered Odoo modules are already mined and up-to-date!")
+            return
 
-            logger.info(f"🚀 Starting High-Insight Mining: {module}")
-            
-            # Trigger 6+3.5+4+N Workflow
-            params = {
-                "target_module": module,
-                "workflow_type": "full_analysis",
-                "detail_level": "comprehensive",
-                "instruction_focus": "HUMAN_INSIGHT_FIRST" # Tell Agents to focus on business value
-            }
-            
-            try:
-                result = execute_skill(params)
-                if result.get("status") == "completed":
-                    self.mark_status(module, "completed")
-                    logger.info(f"✅ Mined {module}. Insight stored in kb/mem/.")
-                    count += 1
-                else:
-                    self.mark_status(module, "failed")
-            except Exception as e:
-                logger.error(f"❌ Error mining {module}: {e}")
-                self.mark_status(module, "error")
+        logger.info(f"🌐 Initiating Parallel Agentic Mesh mining for {len(modules_to_mine)} modules with {max_workers} threads...")
+
+        # 3. Parallel Execution via ThreadPoolExecutor
+        completed_count = 0
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="AgentMesh") as executor:
+            future_to_module = {executor.submit(self._mine_module, m): m for m in modules_to_mine}
+            for future in as_completed(future_to_module):
+                module = future_to_module[future]
+                try:
+                    mod, status = future.result()
+                    if status == "completed":
+                        completed_count += 1
+                except Exception as exc:
+                    logger.error(f"❌ Thread execution for {module} generated an exception: {exc}")
+
+        logger.info(f"📊 Parallel mining session concluded: {completed_count}/{len(modules_to_mine)} modules successfully completed.")
 
 if __name__ == "__main__":
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-    ContinuousMiner().run(limit=limit)
+    workers = int(sys.argv[2]) if len(sys.argv) > 2 else 4
+    ContinuousMiner().run(limit=limit, max_workers=workers)
