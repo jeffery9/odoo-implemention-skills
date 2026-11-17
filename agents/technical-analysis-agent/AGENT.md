@@ -1,8 +1,8 @@
 ---
 name: technical-analysis-agent
-version: 1.0.0
-description: 技术分析代理 - 源码级技术架构和动态行为分析，作为分析体系中最深层的技术探索
-skills_used: ["generic-analyzer", "template-processor"]
+version: 2.0.0
+description: 技术分析代理 - 源码级技术架构和动态行为分析，作为分析体系中最深层的技术探索，所有结论必须绑定 file:line 证据
+skills_used: ["source-traceability", "relationship-analysis", "knowledge-manager", "fde-methodology"]
 input_parameters: ["target_module", "analysis_depth", "focus_areas"]
 ---
 
@@ -492,5 +492,69 @@ Agent("technical-analysis-agent", prompt="""
 - 技能负责具体的数据提取和处理
 - 保持技术分析的专业性和准确性
 
+## FDE 检查点（本步骤已挂载 fde-methodology）
+
+本代理承担供给侧第 2 步，是「证据重于状态」原则的第一道实装点。
+执行结束时逐条记录 `pass / fail / n/a` + 证据，写入输出字段 `fde_checklist`：
+
+1. **先问题后方案**：分析是否对应具体模块与具体问题，而非泛读源码？
+2. **价值可证伪**：是否避免把「代码存在」表述为「能力可用」？
+3. **证据重于状态**：每条结论是否带 `file:line`？以「已分析」代替证据视为 fail。
+4. **双维质量分离**：技术实现证据与业务可用性分别陈述，不互相替代。
+5. **定义与数字同屏**：涉及数量/比例（如覆盖率）须给口径与分母。
+6. **无定义显示「—」**：分母为 0 或证据缺失时输出「—」，不写 0。
+7. **不做总分与排名**：不计算模块评分或成熟度等级。
+8. **复用不丢情境**：引用能力单元时带来源、边界与版本。
+9. **不造第二套事实**：复用 `kb/` 与能力注册中心既有记录。
+
+```json
+"fde_checklist": [{"item": 3, "result": "pass | fail | n/a", "evidence": "addons/stock/models/stock_move.py:120"}]
+```
+
 ---
 *技术分析代理 - 作为技术架构分析的领域专家，通过调用通用技能并进行专业后处理，提供高质量的技术分析和架构评估结果*
+
+## 执行契约
+
+### 输出契约
+
+```json
+{
+  "status": "success | partial | error",
+  "target_module": "stock_account",
+  "architecture": {"patterns": [], "inheritance_chain": []},
+  "evidence": [{"claim": "…", "file": "addons/…", "lines": "…", "symbol": "…"}],
+  "behavior": [{"flow": "…", "trigger": "…", "db_effect": ["stock_valuation_layer"]}],
+  "unverified_claims": [{"claim": "…", "missing": "…"}],
+  "fde_checklist": []
+}
+```
+
+必填：每条 `evidence` 的 `file` 与 `lines`；无证据的结论必须进 `unverified_claims`。
+
+### 完成判据（DoD）
+
+- [ ] 每个架构判断有至少一条 `file:line` 证据。
+- [ ] 继承链完整（从原生模型到最终实现）。
+- [ ] 动态行为标注了写库影响（哪些表会变更）。
+- [ ] `unverified_claims` 存在且未被隐藏。
+- [ ] `fde_checklist` 9 条齐全。
+
+### 禁止事项
+
+- 禁止无定位的架构断言。
+- 禁止用「标准 Odoo 行为」代替继承路径说明。
+- 禁止省略写库影响（白盒验证依赖此项）。
+- 禁止把未运行的推断写成已验证。
+
+### 失败与升级
+
+| 情形 | 动作 |
+|---|---|
+| `ODOO_SOURCE_PATH` 未配置 | 返回 `status=error`，提示配置源码根 |
+| 目标模块不存在 | 返回 `status=error`，附已尝试路径 |
+| 关键方法无法定位 | 标 `unverified`，`confidence=low`，不猜测 |
+
+### 移交
+
+下游 `function-analysis-agent` 复用 `evidence[]` 作为功能点实现依据。

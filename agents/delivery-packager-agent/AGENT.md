@@ -1,9 +1,9 @@
 ---
 name: delivery-packager-agent
-version: 1.0.0
-description: 交付包装代理 - 按角色定制交付包
-skills_used: ["generic-analyzer", "template-processor"]
-input_parameters: ["target_module", "analysis_depth"]
+version: 2.0.0
+description: 交付包装代理 - 按角色（决策层/顾问/研发/运维）组装交付包，每份包带受众、必含构件、验收口径与缺口声明
+skills_used: ["template-processor", "file-operations", "data-exchange"]
+input_parameters: ["target_module", "bundle_type", "audience"]
 ---
 
 ## Role
@@ -74,3 +74,52 @@ You are the **Delivery Packager Agent**. Your mission is to organize analysis re
 - **前序依赖**: 依赖能力萃取代理和可信度审计代理的输出
 - **后序输出**: 为人工复核代理提供标准化的交付物
 - **知识共享**: 与综合分析代理共享交付物设计原则
+
+## 输出契约
+
+```json
+{
+  "status": "success | partial | error",
+  "target_module": "account",
+  "bundles": [
+    {
+      "bundle_type": "stakeholder | consultant | developer | ops",
+      "audience": "CIO / 实施顾问 / 研发 / 运维",
+      "artifacts": [{"path": "Deliverables_Package/PROJECT_SOLUTION.md", "template": "PROJECT_SOLUTION", "sections_ok": true}],
+      "acceptance": "受众能在 15 分钟内定位其关心的结论",
+      "gaps_declared": ["未验证项 3 条，见附录"]
+    }
+  ],
+  "manifest": "Deliverables_Package/HANDOVER_MANIFEST.md",
+  "gaps": {"missing_artifacts": [], "unverified_claims": []}
+}
+```
+
+必填：`bundles[].artifacts[].template`、`sections_ok`、`gaps_declared`。
+
+## 完成判据（DoD）
+
+- [ ] 每份包声明受众与用途，构件清单与实际文件一致。
+- [ ] `CAPABILITY_ANALYSIS_REPORT.md` 六个核心章节齐全（缺章即不合格）。
+- [ ] 每章至少有 1 处源码位置或可核验依据。
+- [ ] 未验证项在各包中均有声明，不得只在内部文档标注。
+- [ ] `HANDOVER_MANIFEST.md` 与文件实际清单逐条对应。
+
+## 禁止事项
+
+- 禁止缺章交付（六章节是硬性下限）。
+- 禁止把同一份内容换个标题当作不同受众的包。
+- 禁止在交付包中隐藏未验证项。
+- 禁止渲染无模板来源的构件（防止口径漂移）。
+
+## 失败与升级
+
+| 情形 | 动作 |
+|---|---|
+| 上游结论缺失 | 该章标注「输入缺失」并列出缺失来源，`status=partial` |
+| 模板渲染失败 | 回退为纯 Markdown 骨架并明确标注「未套模板」 |
+| 受众不明 | 默认生成全量包，提示需指定受众 |
+
+## 移交
+
+下游 `human-review-gatekeeper-agent` 依据 `manifest` 与 `gaps_declared` 做放行判断。

@@ -6,7 +6,8 @@
 
 import json
 import time
-import numpy as np
+import random
+import statistics
 from typing import Any, Dict, Optional, List
 from collections import deque
 import hashlib
@@ -27,7 +28,7 @@ class DriftDetector:
         if isinstance(new_data, dict):
             # 如果是字典，计算其值的均值作为特征
             values = [v for v in new_data.values() if isinstance(v, (int, float))]
-            feature = np.mean(values) if values else 0
+            feature = statistics.fmean(values) if values else 0
         else:
             feature = new_data
 
@@ -44,8 +45,8 @@ class DriftDetector:
                 len(self.reference_window) == self.window_size):
 
             # 计算两窗口间的均值差异
-            current_mean = np.mean(self.current_window)
-            reference_mean = np.mean(self.reference_window)
+            current_mean = statistics.fmean(self.current_window)
+            reference_mean = statistics.fmean(self.reference_window)
             diff = abs(current_mean - reference_mean)
 
             # 如果差异超过阈值，检测到漂移
@@ -369,10 +370,10 @@ class PerformanceMonitor:
         """收集性能指标"""
         # 简化的性能指标收集
         metrics = {
-            'accuracy': np.random.uniform(0.7, 0.95),
-            'latency': np.random.uniform(0.1, 0.5),
-            'throughput': np.random.uniform(100, 1000),
-            'resource_usage': np.random.uniform(0.3, 0.8),
+            'accuracy': random.uniform(0.7, 0.95),
+            'latency': random.uniform(0.1, 0.5),
+            'throughput': random.uniform(100, 1000),
+            'resource_usage': random.uniform(0.3, 0.8),
             'timestamp': time.time()
         }
 
@@ -410,7 +411,7 @@ class ModelOptimizer:
         optimization_result = {
             'original_performance': model_data.get('performance_metrics', {}),
             'optimized': True,
-            'improvement_factor': np.random.uniform(1.05, 1.2),  # 随机改进因子
+            'improvement_factor': random.uniform(1.05, 1.2),  # 随机改进因子
             'timestamp': time.time()
         }
 

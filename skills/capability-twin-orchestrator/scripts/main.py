@@ -311,7 +311,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Ecosystem Discovery",
                 "agent_type": "ecosystem-discovery-agent",
                 "sub_goal": f"discover ecosystem dependencies for {params.get('target_module')}",
-                "skills_granted": ["relationship-analysis", "source-traceability", "generic-analyzer"],
+                "skills_granted": ["relationship-analysis", "source-traceability", "knowledge-manager"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "include_enterprise": True,
@@ -325,7 +325,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Technical Analysis",
                 "agent_type": "technical-analysis-agent",
                 "sub_goal": f"analyze technical implementation of {params.get('target_module')}",
-                "skills_granted": ["source-traceability", "knowledge-manager", "relationship-analysis", "fde-methodology"],
+                "skills_granted": ["source-traceability", "relationship-analysis", "knowledge-manager", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": "deep" if params.get("detail_level") == "comprehensive" else params.get("detail_level"),
@@ -338,7 +338,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Function Analysis",
                 "agent_type": "function-analysis-agent",
                 "sub_goal": f"analyze functional capabilities of {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "knowledge-manager"],
+                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -349,7 +349,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Domain Analysis",
                 "agent_type": "domain-analysis-agent",
                 "sub_goal": f"analyze domain-specific aspects of {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "relationship-analysis"],
+                "skills_granted": ["generic-analyzer", "relationship-analysis", "knowledge-manager"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -360,7 +360,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Business Process Analysis",
                 "agent_type": "business-process-agent",
                 "sub_goal": f"analyze business processes in {params.get('target_module')}",
-                "skills_granted": ["business-process-agent", "relationship-analysis"],
+                "skills_granted": ["documentation-miner", "relationship-analysis", "generic-analyzer", "knowledge-manager"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -371,7 +371,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Comprehensive Analysis",
                 "agent_type": "comprehensive-analysis-agent",
                 "sub_goal": f"synthesize comprehensive view of {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "knowledge-manager", "relationship-analysis", "fde-methodology"],
+                "skills_granted": ["source-traceability", "generic-analyzer", "quality-gate", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "inputs": [
@@ -422,16 +422,18 @@ class CapabilityTwinOrchestratorSkill:
                     f"Result: {json.dumps(subagent_result, default=str, ensure_ascii=False)[:500]}..."  # Truncate for readability
                 )
 
-        # Update task plan after completion
+        # 按子步骤真实状态结算，失败/待执行不标记为完成
+        outcome = self._workflow_outcome(results)
         if self.file_tracker:
-            self.file_tracker.update_task_plan_phase(2, "completed", "Supply-side analysis (Steps 1-6)")
+            self.file_tracker.update_task_plan_phase(
+                2, "completed" if outcome["status"] == "completed" else "in_progress",
+                f"Supply-side analysis (Steps 1-6) — {outcome['status']}")
             self.file_tracker.update_task_plan_status("Moving to demand-side analysis", "Phase 3")
 
         return {
             "workflow_type": "supply_side_analysis",
-            "steps_completed": len(workflow_steps),
+            **outcome,
             "results": results,
-            "status": "completed"
         }
 
     def execute_demand_side_analysis(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -451,7 +453,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Industry Requirements Analysis",
                 "agent_type": "industry-requirements-agent",
                 "sub_goal": f"analyze industry requirements for {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "relationship-analysis", "fde-methodology"],
+                "skills_granted": ["documentation-miner", "generic-analyzer", "knowledge-manager", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -462,7 +464,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Solution Architecture",
                 "agent_type": "solution-architect-agent",
                 "sub_goal": f"define solution architecture for {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "relationship-analysis", "template-processor"],
+                "skills_granted": ["documentation-miner", "relationship-analysis", "template-processor"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -473,7 +475,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Implementation Guide Analysis",
                 "agent_type": "implementation-guide-agent",
                 "sub_goal": f"create implementation guide for {params.get('target_module')}",
-                "skills_granted": ["template-processor", "knowledge-manager", "data-exchange", "fde-methodology"],
+                "skills_granted": ["documentation-miner", "template-processor", "data-exchange", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -516,16 +518,17 @@ class CapabilityTwinOrchestratorSkill:
                     f"Result: {json.dumps(subagent_result, default=str, ensure_ascii=False)[:500]}..."  # Truncate for readability
                 )
 
-        # Update task plan after completion
+        outcome = self._workflow_outcome(results)
         if self.file_tracker:
-            self.file_tracker.update_task_plan_phase(3, "completed", "Demand-side analysis (Steps 7-9)")
+            self.file_tracker.update_task_plan_phase(
+                3, "completed" if outcome["status"] == "completed" else "in_progress",
+                f"Demand-side analysis (Steps 7-9) — {outcome['status']}")
             self.file_tracker.update_task_plan_status("Moving to capability extraction", "Phase 4")
 
         return {
             "workflow_type": "demand_side_analysis",
-            "steps_completed": len(workflow_steps),
+            **outcome,
             "results": results,
-            "status": "completed"
         }
 
     def execute_capability_extraction_workflow(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -545,7 +548,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Capability Unit Extraction",
                 "agent_type": "capability-extractor-agent",
                 "sub_goal": f"extract capability units from {params.get('target_module')} analysis",
-                "skills_granted": ["knowledge-manager", "data-exchange", "quality-gate", "fde-methodology"],
+                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager", "quality-gate", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "inputs": ["comprehensive_analysis_report"],
@@ -558,7 +561,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Delivery Packaging",
                 "agent_type": "delivery-packager-agent",
                 "sub_goal": f"package deliverables for {params.get('target_module')}",
-                "skills_granted": ["template-processor", "data-exchange", "knowledge-manager"],
+                "skills_granted": ["template-processor", "file-operations", "data-exchange"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -569,7 +572,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Trustworthiness Audit",
                 "agent_type": "trustworthiness-auditor-agent",
                 "sub_goal": f"audit trustworthiness of {params.get('target_module')} results",
-                "skills_granted": ["quality-gate", "source-traceability", "knowledge-manager", "fde-methodology"],
+                "skills_granted": ["source-traceability", "quality-gate", "knowledge-manager", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -623,16 +626,17 @@ class CapabilityTwinOrchestratorSkill:
                     f"Result: {json.dumps(subagent_result, default=str, ensure_ascii=False)[:500]}..."  # Truncate for readability
                 )
 
-        # Update task plan after completion
+        outcome = self._workflow_outcome(results)
         if self.file_tracker:
-            self.file_tracker.update_task_plan_phase(4, "completed", "Capability extraction & quality assurance (Steps 10-13)")
+            self.file_tracker.update_task_plan_phase(
+                4, "completed" if outcome["status"] == "completed" else "in_progress",
+                f"Capability extraction & quality assurance (Steps 10-13) — {outcome['status']}")
             self.file_tracker.update_task_plan_status("Moving to results aggregation", "Phase 5")
 
         return {
             "workflow_type": "capability_extraction_workflow",
-            "steps_completed": len(workflow_steps),
+            **outcome,
             "results": results,
-            "status": "completed"
         }
 
     def execute_customization_workflow(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -663,7 +667,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Capability Specification Definition",
                 "agent_type": "capability-specification-definer-agent",
                 "sub_goal": f"define capability specifications for requirement: {params.get('requirement', 'custom')}",
-                "skills_granted": ["knowledge-manager", "template-processor", "data-exchange"],
+                "skills_granted": ["template-processor", "generic-analyzer", "knowledge-manager"],
                 "config": {
                     "requirement": params.get("requirement", "custom_requirement"),
                     "target_module": params.get("target_module")
@@ -674,7 +678,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Code Generation",
                 "agent_type": "code-autogenerator-agent",
                 "sub_goal": f"generate code for requirement: {params.get('requirement', 'custom')}",
-                "skills_granted": ["file-operations", "template-processor", "data-exchange"],
+                "skills_granted": ["file-operations", "template-processor", "source-traceability", "quality-gate"],
                 "config": {
                     "requirement": params.get("requirement", "custom_requirement"),
                     "target_module": params.get("target_module")
@@ -728,17 +732,17 @@ class CapabilityTwinOrchestratorSkill:
                     f"Result: {json.dumps(subagent_result, default=str, ensure_ascii=False)[:500]}..."  # Truncate for readability
                 )
 
-        # Update task plan after completion
+        outcome = self._workflow_outcome(results)
         if self.file_tracker:
-            self.file_tracker.update_task_plan_status("Customization workflow completed", "Phase 5")
+            self.file_tracker.update_task_plan_status(
+                f"Customization workflow — {outcome['status']}", "Phase 5")
 
         return {
             "workflow_type": "customization",
             "requirement": params.get("requirement", "custom_requirement"),
             "target_module": params.get("target_module"),
-            "steps_completed": len(workflow_steps),
+            **outcome,
             "results": results,
-            "status": "completed"
         }
 
     def execute_full_analysis_workflow(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -756,10 +760,30 @@ class CapabilityTwinOrchestratorSkill:
         # Execute capability extraction (steps 10-13)
         extraction_results = self.execute_capability_extraction_workflow(params)
 
+        # 汇总三段子工作流的真实状态，不按固定 13 步宣称完成
+        phases = [supply_results, demand_results, extraction_results]
+        agg = {
+            "steps_total": sum(p.get("steps_total", 0) for p in phases),
+            "steps_completed": sum(p.get("steps_completed", 0) for p in phases),
+            "steps_delegated": sum(p.get("steps_delegated", 0) for p in phases),
+            "steps_failed": sum(p.get("steps_failed", 0) for p in phases),
+        }
+        agg["requires_semantic_execution"] = agg["steps_delegated"] > 0
+        phase_statuses = [p.get("status") for p in phases]
+        if all(s == "completed" for s in phase_statuses):
+            agg["status"] = "completed"
+        elif all(s == "failed" for s in phase_statuses):
+            agg["status"] = "failed"
+        else:
+            agg["status"] = "partial"
+
         # Update task plan after completion
         if self.file_tracker:
-            self.file_tracker.update_task_plan_phase(5, "completed", "Results aggregation and delivery")
-            self.file_tracker.update_task_plan_status("Workflow completed", "Phase 5")
+            self.file_tracker.update_task_plan_phase(
+                5, "completed" if agg["status"] == "completed" else "in_progress",
+                f"Results aggregation and delivery — {agg['status']}")
+            self.file_tracker.update_task_plan_status(
+                f"Workflow {agg['status']}", "Phase 5")
             self.file_tracker.add_to_analysis_report(
                 "Complete Results Summary",
                 f"Supply-side analysis results: {json.dumps(supply_results, default=str, ensure_ascii=False)[:300]}..."
@@ -781,13 +805,78 @@ class CapabilityTwinOrchestratorSkill:
             "supply_side_results": supply_results,
             "demand_side_results": demand_results,
             "extraction_results": extraction_results,
-            "total_steps_completed": 13,
-            "status": "completed",
+            **agg,
             "subagent_results_summary": {name: self._summarize_result(result)
                                        for name, result in self.subagent_results.items()}
         }
 
         return complete_results
+
+    # 交付包 → 模板映射（templates/deliverables/ 下 16 份模板的完整覆盖）
+    BUNDLE_TEMPLATES = {
+        "strategy":    ["PURPOSE_AND_STRATEGY", "PROJECT_SOLUTION", "STATEMENT_OF_WORK"],
+        "consultant":  ["CONSULTANT_CONF_GUIDE", "CONSULTANT_UAT_SCRIPT",
+                        "CONSULTANT_DISCOVERY_NOTE", "IMPLEMENTATION_METHODOLOGY"],
+        "developer":   ["CAPABILITY_ANALYSIS_REPORT", "GAP_ANALYSIS_REPORT", "SOLUTION_SPECIFICATION",
+                        "CAPABILITY_UNIT_SPEC", "SCENARIO_SOLUTION", "FUNCTIONAL_DOC_SPEC"],
+        "handover":    ["HANDOVER_MANIFEST", "EVOLUTION_GUIDE", "BEST_PRACTICES_REPORT"],
+    }
+    BUNDLE_ALIASES = {
+        "handover_package": "handover", "asset": "handover", "资产移交包": "handover",
+        "战略包": "strategy", "顾问包": "consultant", "研发技术包": "developer",
+    }
+
+    def render_deliverables_bundle(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        渲染角色化交付包。
+
+        这是 README §6 记录的 `operation: render_deliverables_bundle` 的实际实现：
+        按 bundle_type 选取模板集合，逐份调用 template-processor 落盘。
+        以「文件是否真的生成」判定成功，不以返回值声称成功。
+        """
+        bundle_type = params.get("bundle_type", "handover_package")
+        key = self.BUNDLE_ALIASES.get(bundle_type, bundle_type)
+        templates = self.BUNDLE_TEMPLATES.get(key)
+        if not templates:
+            return {
+                "status": "error",
+                "error": f"未知 bundle_type: {bundle_type}",
+                "supported": sorted(self.BUNDLE_TEMPLATES),
+                "aliases": sorted(self.BUNDLE_ALIASES),
+            }
+
+        context = params.get("context_data", {}) or {}
+        out_dir = Path(params.get("output_directory")
+                       or (self.config.get_output_path() / "deliverables" / key))
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        rendered, failed = [], []
+        for name in templates:
+            target = out_dir / f"{name}.md"
+            self.capability_registry.execute_capability("template-processor", {
+                "operation": "render_deliverable",
+                "template_name": name,
+                "context_data": context,
+                "output_path": str(target),
+                "template_engine": params.get("template_engine", "simple"),
+            })
+            if target.is_file() and target.stat().st_size > 0:
+                rendered.append({"template": name, "path": str(target)})
+            else:
+                failed.append({"template": name, "reason": "未生成输出文件"})
+
+        return {
+            "workflow_type": "render_deliverables_bundle",
+            "bundle_type": key,
+            "output_directory": str(out_dir),
+            "status": "success" if not failed else ("partial" if rendered else "failed"),
+            "steps_total": len(templates),
+            "steps_completed": len(rendered),
+            "steps_failed": len(failed),
+            "rendered": rendered,
+            "failed": failed,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     def execute_subagent(self, agent_type: str, goal: str,
                         skills_granted: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -819,6 +908,19 @@ class CapabilityTwinOrchestratorSkill:
             # Execute the agent through the capability registry
             result = self.capability_registry.execute_capability(agent_type, subagent_params)
 
+            # 无论走哪条执行路径（prompt / stub / subprocess），结果都必须携带被授予的技能，
+            # 否则下游无法判断本步骤受哪些约束、是否挂了 FDE 检查点。
+            if isinstance(result, dict):
+                result.setdefault("skills_granted", list(skills_granted))
+                if "fde-methodology" in skills_granted:
+                    result["fde_checkpoint"] = {
+                        "required": True,
+                        "checklist": "skills/fde-methodology/SKILL.md §5（9 条）",
+                        "record_format": "逐条 pass / fail / n/a + 证据",
+                        # 由执行者在实际复核后置为 True 并附证据；框架不代填
+                        "recorded": False,
+                    }
+
             logger.info(f"Sub-agent {agent_type} executed successfully")
             return result
 
@@ -849,8 +951,8 @@ class CapabilityTwinOrchestratorSkill:
         Update the shared context with step results
         """
         try:
-            # Store result reference
-            self.shared_context["previous_results"][step_name] = {
+            # Store result reference（setdefault：允许直接调用单个工作流方法）
+            self.shared_context.setdefault("previous_results", {})[step_name] = {
                 "result_reference": result.get("result_reference", ""),
                 "timestamp": datetime.now().isoformat(),
                 "agent_name": result.get("agent_type", ""),
@@ -896,12 +998,68 @@ class CapabilityTwinOrchestratorSkill:
             "timestamp": result.get("timestamp", datetime.now().isoformat())
         }
 
+    # 子步骤状态归一化：只有 success 才算「本步骤已完成」。
+    # delegated 表示指令已下发、等待语义执行（prompt agent 的正常工作方式），
+    # 它不等于完成；failed 表示执行失败或无可用入口。
+    DELEGATED_STATUSES = {"pending_instruction", "semantic_wait", "delegated"}
+    FAILED_STATUSES = {"error", "failed", "unsupported"}
+
+    def _normalize_step_status(self, status: str) -> str:
+        """把子代理返回的多种状态归一到 success / delegated / failed 三态"""
+        s = (status or "unknown").lower()
+        if s in self.DELEGATED_STATUSES:
+            return "delegated"
+        if s in self.FAILED_STATUSES:
+            return "failed"
+        if s in ("success", "completed", "ok"):
+            return "success"
+        return "failed"
+
+    def _workflow_outcome(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        按子步骤真实状态汇总工作流结论。
+
+        规则（避免「全部失败仍报 completed」）：
+        - 全部 success            → completed
+        - 有失败且有成功/委派      → partial
+        - 无 success 但有委派      → delegated（等待语义执行，未完成）
+        - 全部失败                 → failed
+        """
+        counts = {"success": 0, "delegated": 0, "failed": 0}
+        for item in results:
+            counts[self._normalize_step_status((item.get("result") or {}).get("status", ""))] += 1
+
+        total = len(results)
+        if total and counts["success"] == total:
+            status = "completed"
+        elif counts["failed"] == total or total == 0:
+            status = "failed"
+        elif counts["failed"] > 0:
+            status = "partial"
+        else:
+            status = "delegated"
+
+        return {
+            "status": status,
+            "steps_total": total,
+            "steps_completed": counts["success"],
+            "steps_delegated": counts["delegated"],
+            "steps_failed": counts["failed"],
+            "requires_semantic_execution": counts["delegated"] > 0,
+        }
+
 def execute_skill(skill_params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute the Capability Twin Orchestrator skill
     """
     try:
         logger.info("Executing Capability Twin Orchestrator skill")
+
+        # 交付包渲染入口（README §6 记录的 operation）。
+        # 早期版本忽略 operation，导致该命令静默落到 full_analysis；此处显式分流。
+        if skill_params.get("operation") in ("render_deliverables_bundle", "render_deliverable"):
+            banner = CapabilityTwinOrchestratorSkill(config=CapabilityTwinConfig())
+            return banner.render_deliverables_bundle(skill_params)
 
         # Check if we need to perform intent analysis first
         # If the user provided a natural language request without structured parameters
@@ -996,22 +1154,22 @@ def main():
             {
                 "agent_type": "ecosystem-discovery-agent",
                 "sub_goal": "discover ecosystem dependencies for sale module",
-                "skills_granted": ["relationship-analysis", "source-traceability", "generic-analyzer"]
+                "skills_granted": ["relationship-analysis", "source-traceability", "knowledge-manager"]
             },
             {
                 "agent_type": "technical-analysis-agent",
                 "sub_goal": "analyze technical implementation of sale models and workflows",
-                "skills_granted": ["source-traceability", "knowledge-manager", "relationship-analysis"]
+                "skills_granted": ["source-traceability", "relationship-analysis", "knowledge-manager", "fde-methodology"]
             },
             {
                 "agent_type": "function-analysis-agent",
                 "sub_goal": "analyze functional capabilities of sale module",
-                "skills_granted": ["generic-analyzer", "knowledge-manager"]
+                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager"]
             },
             {
                 "agent_type": "capability-extractor-agent",
                 "sub_goal": "extract capability units from analysis results",
-                "skills_granted": ["knowledge-manager", "data-exchange", "quality-gate"]
+                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager", "quality-gate", "fde-methodology"]
             }
         ],
         "context_sharing": {
@@ -1041,12 +1199,12 @@ def main():
             {
                 "agent_type": "capability-gap-identifier-agent",
                 "sub_goal": "identify capability gaps for negative inventory control",
-                "skills_granted": ["source-traceability", "relationship-analysis"]
+                "skills_granted": ["source-traceability", "relationship-analysis", "knowledge-manager"]
             },
             {
                 "agent_type": "code-autogenerator-agent",
                 "sub_goal": "generate code for negative inventory control feature",
-                "skills_granted": ["file-operations", "template-processor", "data-exchange"]
+                "skills_granted": ["file-operations", "template-processor", "source-traceability", "quality-gate"]
             }
         ]
     }

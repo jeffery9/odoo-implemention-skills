@@ -9,17 +9,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+# 路径锚定到本文件，避免依赖进程工作目录（CWD）。
+# config.py 位于 <repo>/skills/capability-twin-orchestrator/scripts/
+_SKILL_ROOT = Path(__file__).resolve().parents[1]
+_FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
+
 
 @dataclass
 class CapabilityTwinConfig:
     """
     Configuration for the Capability Twin framework
     """
-    # Registry configuration
-    registry_path: str = "capability_registry.json"
+    # Registry configuration（默认指向仓内真实注册表，不随 CWD 漂移）
+    registry_path: str = str(_SKILL_ROOT / "capability_registry.json")
 
-    # File tracking configuration
-    output_directory: str = "capability_twin_runs"
+    # File tracking configuration（默认落在框架根目录，避免污染调用方 CWD）
+    output_directory: str = str(_FRAMEWORK_ROOT / "capability_twin_runs")
     file_tracking_enabled: bool = True
 
     # Performance configuration

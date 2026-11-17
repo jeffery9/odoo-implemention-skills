@@ -13,10 +13,10 @@ from unittest.mock import Mock, patch
 
 # Add project paths
 skill_dir = Path(__file__).parent.resolve()
-project_root = skill_dir.parent.parent.parent
-scripts_dir = project_root / ".claude" / "scripts"
+repo_root = skill_dir.parents[1]          # <repo>
+scripts_dir = repo_root / "scripts"       # 公共模块（capability_registry）所在目录
 
-sys.path.append(str(project_root))
+sys.path.append(str(repo_root))
 sys.path.append(str(scripts_dir))
 sys.path.append(str(skill_dir))
 

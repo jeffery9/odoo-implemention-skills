@@ -1,4 +1,4 @@
-# Capability Twin 3.0 Framework (Master Reference & Guide)
+# Capability Twin 3.5 Framework (Master Reference & Guide)
 
 > **最高指导原则 (Master Mandate)**：只维护唯一一份官方、完备的 `CAPABILITY_TWIN` 框架技术指南，彻底消灭零碎、散乱、重合的历史副本文档。
 
@@ -6,7 +6,7 @@
 
 ## 1. 框架概述 (Framework Overview)
 
-**Capability Twin 3.0** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 13 个专业子智能体和原子技能池有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
+**Capability Twin 3.0** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 18 个专业子智能体和 20 个原子技能有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
 
 ---
 
@@ -21,15 +21,16 @@ export ODOO_SOURCE_PATH="/Users/jeffery/_project/topdon/EUx/odoo-19.0"
 ### 2.2 自动盘点与能力注册
 当新增或重构了智能体（`agents/` 目录）或原子技能（`skills/` 目录）时，必须执行自动能力盘点脚本，以重建统一 能力孪生注册中心（`capability_registry.json`）：
 ```bash
-python3 CAPABILITY_TWIN/discover_capabilities.py
+# 在仓库根目录执行（脚本内部按自身位置定位，不依赖当前工作目录）
+python3 discover_capabilities.py
 ```
 
 ### 2.3 高并发多线程采矿（Continuous Mining）
 可以通过启动 `mine_odoo_source.py` 开启 **Parallel Agentic Mesh（并行智能体网格）** 高速采矿。系统将自动分配多线程（默认 4 线程），采用 `threading.Lock` 线程锁，并发对 Odoo 核心模块的 `depends`、模型继承、视图树和 ORM 控制流进行高价值业务感知翻译：
 ```bash
-# 执行语法: python3 CAPABILITY_TWIN/mine_odoo_source.py [模块限制数量] [并发线程数]
+# 执行语法: python3 mine_odoo_source.py [模块限制数量] [并发线程数]
 # 示例: 并发 8 线程分析 15 个 Odoo 核心模块:
-python3 CAPABILITY_TWIN/mine_odoo_source.py 15 8
+python3 mine_odoo_source.py 15 8
 ```
 
 ---
@@ -79,21 +80,41 @@ Skill("capability-twin-orchestrator", params={
 
 ## 6. 角色化交付物体系（Deliverables Templates）
 
-框架内置了 10+ 种符合企业级标准的标准化文档与交付包模板（位于 `CAPABILITY_TWIN/templates/deliverables/`），提供一键打包：
+框架内置 16 份企业级交付模板（位于 `templates/deliverables/`），按角色分四类打包：
+
+| `bundle_type` | 中文名 | 包含模板 |
+|---|---|---|
+| `strategy` | 战略包 | `PURPOSE_AND_STRATEGY`、`PROJECT_SOLUTION`、`STATEMENT_OF_WORK` |
+| `consultant` | 顾问包 | `CONSULTANT_CONF_GUIDE`、`CONSULTANT_UAT_SCRIPT`、`CONSULTANT_DISCOVERY_NOTE`、`IMPLEMENTATION_METHODOLOGY` |
+| `developer` | 研发技术包 | `CAPABILITY_ANALYSIS_REPORT`、`GAP_ANALYSIS_REPORT`、`SOLUTION_SPECIFICATION`、`CAPABILITY_UNIT_SPEC`、`SCENARIO_SOLUTION`、`FUNCTIONAL_DOC_SPEC` |
+| `handover` | 资产移交包 | `HANDOVER_MANIFEST`、`EVOLUTION_GUIDE`、`BEST_PRACTICES_REPORT` |
 
 ```python
 Skill("capability-twin-orchestrator", params={
     "operation": "render_deliverables_bundle",
-    "bundle_type": "handover_package", # 战略包、顾问包、研发技术包、资产移交包
-    "context_data": {"project_name": "Odoo 19 Localized Chinese Accounting Project"}
+    "bundle_type": "handover",          # strategy / consultant / developer / handover
+    "context_data": {"project_name": "Odoo 19 Localized Chinese Accounting Project",
+                     "target_module": "account"},
+    "output_directory": None            # 缺省写入 capability_twin_runs/deliverables/<bundle>/
 })
 ```
+
+渲染结果以「文件是否真的生成」判定：返回 `rendered` / `failed` 两份清单与三态 `status`。
+模板变量未替换时，`quality-gate` 的文档检查会判 `error`，避免半成品被当作成品交付。
 
 ---
 
 ## 7. 持续进化与知识记忆管理 (KB/Mem)
 
-大网格采用 `JSONL` 与本地向量碎片格式管理长期记忆。通过自主进化引擎，每次运行所沉淀出的新 API、废弃警告或业务模式，会自动回写到长期事实中，并在遇到接口变动 warning 时自动启动“自愈修补”（Self-Healing Loop），更新 Agent 自生的 `SKILL.md` 补丁规则（Supplement Rule），让大网格的心智时刻与 Odoo 版本的升级节奏保持神级同步。
+框架的记忆分三层，各自职责不同：
+
+*   **会话内**：`context-memory-manager` 维护工作记忆与快照，写入 `kb/mem/`（JSONL）。
+*   **跨会话事实**：`knowledge-manager` 与能力注册中心（`capability_registry.json`）保存能力单元与结论索引。
+*   **能力演化**：`autonomous-evolution` 负责漂移检测与知识抽取，**仅生成候选知识并写入 `kb/`**；
+    它不修改任何 `SKILL.md` 或 `AGENT.md` 指令文件——指令变更必须由人评审后合入。
+
+> 说明：早期文档曾描述「自动更新 Agent 自身的 SKILL.md 补丁规则」，该能力并未实现，
+> 也不计划实现：让运行时自动改写指令会破坏可审计性。
 
 ---
 
@@ -113,7 +134,7 @@ Skill("capability-twin-orchestrator", params={
     「通过 / 不通过 / 不适用 + 依据」；不新增阶段、不改 `6+3+4+N` 编号，
     详见 `skills/capability-twin-orchestrator/references/workflows.md`。
 
-新增或调整能力后执行 `python3 CAPABILITY_TWIN/discover_capabilities.py` 重建能力注册中心。
+新增或调整能力后执行 `python3 discover_capabilities.py` 重建能力注册中心。
 
 ---
 *Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*

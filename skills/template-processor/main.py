@@ -13,6 +13,16 @@ from pathlib import Path
 from datetime import datetime
 
 
+def _ensure_dir(path: Path) -> Path:
+    """确保目录存在；兼容不实现 exist_ok 的受限运行时（沙箱 / 自定义 shim）。"""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        if not path.is_dir():
+            raise
+    return path
+
+
 class TemplateProcessor:
     """模板处理器主类"""
 
@@ -23,13 +33,13 @@ class TemplateProcessor:
         self.supported_engines = [
             "jinja2", "mustache", "handlebars", "simple"
         ]
-        # Project-specific deliverable templates
-        self.project_root = Path(__file__).parent.parent.parent.parent
-        self.deliverables_dir = self.project_root / "CAPABILITY_TWIN" / "templates" / "deliverables"
+        # Project-specific deliverable templates（按本文件定位仓库根，不依赖 CWD）
+        self.project_root = Path(__file__).resolve().parents[2]
+        self.deliverables_dir = self.project_root / "templates" / "deliverables"
         
         self.template_cache = {}
         self.cache_dir = Path.home() / ".template_processor_cache"
-        self.cache_dir.mkdir(exist_ok=True)
+        _ensure_dir(self.cache_dir)
 
     def _read_template(self, template_path: str) -> str:
         """读取模板文件"""

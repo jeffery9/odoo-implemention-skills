@@ -321,6 +321,20 @@ class QualityGate:
         elif check_type == "documentation_quality":
             return self._check_documentation_quality(config)
 
+    def _resolve_check_scope(self, target_path: str) -> str:
+        """
+        判定检查对象类型：code / documentation
+
+        产物与检查器必须匹配 —— 用 Python 语法检查器去解析 Markdown，
+        会把正常的中文全角括号判成「语法错误」，属于误拦。
+        """
+        p = Path(target_path)
+        if p.is_file():
+            return "code" if p.suffix.lower() in (".py", ".pyi") else "documentation"
+        if p.is_dir():
+            return "code" if any(p.rglob("*.py")) else "documentation"
+        return "code"
+
     def _check_code_quality(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """代码质量检查"""
         target_path = config.get("target_path")
@@ -329,6 +343,16 @@ class QualityGate:
 
         if not target_path:
             raise ValueError("缺少必需的参数: target_path")
+
+        # 产物类型守卫：文档交付物改走文档质量检查
+        if self._resolve_check_scope(target_path) == "documentation":
+            result = self._check_documentation_quality(config)
+            result["metadata"]["routed_from"] = "code_quality"
+            result["metadata"]["routed_reason"] = (
+                "目标为文档产物（非 .py），已改走文档质量检查，"
+                "避免把中文全角符号或 Markdown 结构误判为 Python 语法错误"
+            )
+            return result
 
         # 执行各种质量检查
         syntax_issues = self._check_syntax(target_path)
@@ -603,6 +627,37 @@ class QualityGate:
                     "file_path": str(file_path),
                     "line_number": 0,
                     "recommendation": "添加适当的标题结构"
+                })
+
+            # 检查占位符残留（框架 AGENT.md 普遍要求 Zero-Placeholder Rule）
+            placeholders = ["待补充", "待完善", "TODO", "TBD", "Pending",
+                            "{module}", "{target_module}", "{Module}", "XXX"]
+            hits = [token for token in placeholders if token in content]
+            # 模板变量未替换：渲染后仍留 {{var}} 说明交付物是半成品
+            unresolved = sorted(set(re.findall(r"\{\{\s*[\w.]+\s*\}\}", content)))
+            hits.extend(unresolved[:5])
+            if hits:
+                issues.append({
+                    "id": f"PLACEHOLDER_{len(issues) + 1}",
+                    "severity": "error",
+                    "category": "documentation",
+                    "description": f"存在未替换的占位符: {', '.join(hits)}",
+                    "file_path": str(file_path),
+                    "line_number": 0,
+                    "recommendation": "补齐实际内容，或用显式「不适用 + 原因」替代占位符"
+                })
+
+            # 检查证据线索：报告类交付物应能回溯到源码位置或条款锚点
+            evidence_tokens = (".py", ".xml", ".csv", "odoo/addons", "行号", "§")
+            if not any(token in content for token in evidence_tokens):
+                issues.append({
+                    "id": f"NO_EVIDENCE_{len(issues) + 1}",
+                    "severity": "warning",
+                    "category": "documentation",
+                    "description": "未发现源码路径 / 行号 / 条款锚点，结论不可追溯",
+                    "file_path": str(file_path),
+                    "line_number": 0,
+                    "recommendation": "为关键结论补充 file:line 或条款引用；确无证据时应显式声明"
                 })
 
         # 统计问题
