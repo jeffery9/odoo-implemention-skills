@@ -8,6 +8,8 @@ import json
 import os
 import re
 import ast
+import importlib.util
+import sys
 from typing import Dict, List, Any
 from pathlib import Path
 from datetime import datetime
@@ -18,7 +20,8 @@ class QualityGate:
 
     def __init__(self):
         self.supported_check_types = [
-            "code_quality", "standard_compliance", "quality_gate", "documentation_quality"
+            "code_quality", "standard_compliance", "quality_gate",
+            "documentation_quality", "scenario_spec"
         ]
         self.severity_levels = ["info", "warning", "error", "critical"]
         self.quality_rules = {}
@@ -320,6 +323,8 @@ class QualityGate:
             return self._enforce_quality_gate(config)
         elif check_type == "documentation_quality":
             return self._check_documentation_quality(config)
+        elif check_type == "scenario_spec":
+            return self._check_scenario_spec(config)
 
     def _resolve_check_scope(self, target_path: str) -> str:
         """
@@ -582,6 +587,114 @@ class QualityGate:
                 }
                 for issue in blocking_issues
             ]
+        }
+
+    # ------------------------------------------------------------------
+    # 场景规格检查（委托给 skills/gherkin-bdd，不在此复制 Gherkin 规则）
+    # ------------------------------------------------------------------
+    SCENARIO_ENGINE = Path(__file__).resolve().parent.parent / "gherkin-bdd" / "scripts" / "gherkin_gate.py"
+
+    def _scenario_engine(self):
+        if getattr(self, "_scenario_engine_module", None) is None:
+            if not self.SCENARIO_ENGINE.is_file():
+                raise FileNotFoundError(f"未找到场景规格引擎：{self.SCENARIO_ENGINE}")
+            spec = importlib.util.spec_from_file_location("qg_gherkin_gate", self.SCENARIO_ENGINE)
+            module = importlib.util.module_from_spec(spec)
+            assert spec.loader is not None
+            # 3.13 起 dataclasses 要求模块先注册到 sys.modules
+            sys.modules.setdefault("qg_gherkin_gate", module)
+            spec.loader.exec_module(module)
+            self._scenario_engine_module = module
+        return self._scenario_engine_module
+
+    def _check_scenario_spec(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        校验 `.feature` 业务场景规格（统一语言 + 结构 + 标签 + 唯一性）。
+
+        判据：`error=0` 才算通过；warning 只记录，不阻断。
+        """
+        target_path = config.get("target_path")
+        if not target_path:
+            raise ValueError("缺少必需的参数: target_path")
+
+        engine = self._scenario_engine()
+        report = engine.validate(Path(target_path))
+
+        issues: List[Dict] = []
+        for item in report.get("issues", []):
+            severity = "error" if item.get("severity") == "error" else "warning"
+            issues.append({
+                "id": item.get("code", "BDD"),
+                "severity": severity,
+                "category": "scenario_spec",
+                "description": item.get("message", ""),
+                "file_path": item.get("file", ""),
+                "line_number": item.get("line", 0),
+                "recommendation": (
+                    "按 skills/gherkin-bdd/references/authoring-rules.md 修正；"
+                    f"校验码 {item.get('code', '')} 有对应说明"
+                ),
+            })
+
+        issues_by_severity = self._count_issues_by_severity(issues)
+        quality_score = self._calculate_quality_score(issues)
+        passed = report.get("errors", 0) == 0
+
+        return {
+            "metadata": {
+                "skill_name": "quality-gate",
+                "check_type": "scenario_spec",
+                "target_scope": str(target_path),
+                "execution_time": datetime.now().isoformat(),
+                "status": "success",
+                "engine": "skills/gherkin-bdd/scripts/gherkin_gate.py",
+            },
+            "results": {
+                "check_result": "pass" if passed else "fail",
+                "total_issues": len(issues),
+                "issues_by_severity": issues_by_severity,
+                "quality_score": quality_score,
+                "scenario_metrics": {
+                    "features": report.get("features", 0),
+                    "scenarios": report.get("scenarios", 0),
+                    "steps": report.get("steps", 0),
+                    "errors": report.get("errors", 0),
+                    "warnings": report.get("warnings", 0),
+                },
+                "performance_metrics": {
+                    "execution_time_ms": 0,
+                    "memory_usage_mb": 0,
+                    "files_processed": report.get("features", 0),
+                },
+            },
+            "quality_details": {
+                "issues": issues,
+                "compliance_status": {
+                    "standards": ["skills/gherkin-bdd/references/authoring-rules.md"],
+                    "compliant": passed,
+                    "non_compliant_items": [i["id"] for i in issues if i["severity"] == "error"],
+                },
+                "gate_decision": {
+                    "passed": passed,
+                    "reason": (
+                        "场景规格校验通过（error=0）" if passed
+                        else f"场景规格存在 {report.get('errors', 0)} 个 error，禁止派生 UAT / 步骤桩"
+                    ),
+                    "blocking_issues": [
+                        f"{i['id']} {i['file_path']}:{i['line_number']} {i['description']}"
+                        for i in issues if i["severity"] == "error"
+                    ],
+                },
+            },
+            "improvement_recommendations": [
+                {
+                    "issue": issue.get("description", ""),
+                    "recommendation": issue.get("recommendation", ""),
+                    "priority": issue.get("severity", "info"),
+                    "effort": "low",
+                }
+                for issue in issues
+            ],
         }
 
     def _check_documentation_quality(self, config: Dict[str, Any]) -> Dict[str, Any]:

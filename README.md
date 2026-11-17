@@ -137,4 +137,40 @@ Skill("capability-twin-orchestrator", params={
 新增或调整能力后执行 `python3 discover_capabilities.py` 重建能力注册中心。
 
 ---
+
+## 9. 业务场景统一语言（Gherkin BDD）
+
+业务场景、验收标准与 UAT 用例统一为 `zh-CN` Gherkin，规格位于
+`skills/gherkin-bdd/features/<odoo_module>/*.feature`，是**唯一事实源**。
+UAT 脚本、追溯矩阵与自动化步骤定义均由工具派生，交付模板不再复制场景正文。
+
+| 能力 | 命令 / 入口 | 判据 |
+|---|---|---|
+| 规格门禁 | `python3 skills/gherkin-bdd/scripts/gherkin_gate.py validate <features_dir>` | `error=0`，退出码 0 |
+| UAT 派生 | `... uat <features_dir> -o capability_twin_runs/uat` | 与 `.feature` 同源 |
+| 步骤桩 | `... steps <features_dir> -o capability_twin_runs/steps` | 未实现步骤显式失败 |
+| 追溯矩阵 | `... matrix <features_dir> -o <json>` | 场景 ↔ 能力单元 ↔ 源码证据 |
+| 质量门检查 | `quality-gate` 的 `check_type: scenario_spec` | 委托同一引擎，`error=0` 才通过 |
+
+**流水线内执行**（不是文档约定，由编排器真实调用）：
+
+| 位置 | 时机 | 行为 |
+|---|---|---|
+| `execute_workflow` preflight | Phase 1 之后、Phase 2 之前 | 校验本模块 `.feature`；`fail` 返回 `status=blocked`、`blocked_at`，不进入分析 |
+| Step 10 → 11 | 能力单元抽取完成 | 生成 UAT / 步骤桩 / 矩阵，并通过 `config["bdd_artifacts"]` 交给打包；`fail` 立即中止 |
+| `render_deliverables_bundle` | 交付包渲染前 | 场景变量由 `.feature` 派生，人工同名字段不得覆盖；未通过则跳过 `SCENARIO_SOLUTION` / `CONSULTANT_UAT_SCRIPT` 并列入 `blocked_templates` |
+
+- 入参：`{"bdd": {"enabled": true, "blocking": true, "features_dir": "...", "output_dir": "..."}}`
+- **回落不算通过**：模块无规格时门禁回落全仓基线，`satisfies_module=false`，
+  基线通过不能替该模块背书，也不允许渲染其场景类交付物。
+- 统一语言词表：`skills/gherkin-bdd/references/ubiquitous-language.md`
+- 编写规范与 20 条校验码：`skills/gherkin-bdd/references/authoring-rules.md`
+- 工作流挂载点：`skills/capability-twin-orchestrator/references/workflows.md` 的
+  “Business Scenario Contract” 一节（挂载，不新增阶段、不改 `6+3+4+N` 编号）
+- 边界：自动化通过 = 工程完成（G2）；交付验收 ≠ 价值实现（FDE 2.0 §5.5）
+
+本轮基线：2 个功能 / 5 个场景 / 21 个步骤，`errors=0`、`warnings=0`；能力单元自测 23/23 通过。
+外部 runner（pytest-bdd / behave）未安装，L2 场景执行未计入通过项。
+
+---
 *Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*

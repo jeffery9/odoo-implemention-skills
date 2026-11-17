@@ -656,6 +656,33 @@
         "has_frontmatter": true
       }
     },
+    "gherkin-bdd": {
+      "name": "gherkin-bdd",
+      "type": "skill",
+      "description": "Gherkin BDD 业务场景统一语言能力单元——将 Capability Twin 的业务场景、验收标准与 UAT 用例统一为 zh-CN Gherkin 可执行规格，并提供解析、静态校验、UAT 生成、步骤桩生成与 CI 门槛判定。用于需求对齐、能力单元提取、交付包验收与自动化测试接入。",
+      "path": "skills/gherkin-bdd",
+      "file": "skills/gherkin-bdd/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "registered_at": "2026-11-17T11:49:34.165086",
+      "metadata": {
+        "file_format": "Skill file",
+        "has_frontmatter": true
+      },
+      "version": "1.0.0",
+      "skills_used": [
+        "quality-gate",
+        "template-processor",
+        "source-traceability",
+        "fde-methodology"
+      ]
+    },
     "intent-to-action-mapper": {
       "name": "intent-to-action-mapper",
       "type": "skill",
