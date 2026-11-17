@@ -16,11 +16,12 @@ def main():
             return
         
         source_root = Path(source_root_str)
-        project_root = Path(__file__).resolve().parents[3]
-        shard_dir = project_root / "kb/shards"
+        project_root = Path(__file__).resolve().parents[2]
+        # 按模块分目录，避免与其它模块的分片互相覆盖/误删
+        shard_dir = project_root / "kb/shards" / target_module
         shard_dir.mkdir(parents=True, exist_ok=True)
         
-        # 物理清理旧分片
+        # 只清理本模块的旧分片（保持幂等，不影响其它模块）
         for f in shard_dir.glob("*.json"): f.unlink()
 
         shards = []

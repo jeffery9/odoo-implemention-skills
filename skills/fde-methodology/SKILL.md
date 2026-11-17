@@ -121,10 +121,14 @@ B 的 6/3/4/N 是**工作量与阶段编号**，不是价值流阶段，**不得
 | 提取与 QA 4 | 10 Capability Extraction、12 Trustworthiness Audit、13 Human Review | 3 证据重于状态、4 双维质量分离、8 复用不丢情境 |
 | N 步客制化 | 4 Quality Gate and Registration | 8 复用不丢情境、9 不造第二套事实 |
 
-**挂载 ≠ 新增阶段**：步骤编号、步骤名与 `6+3+4+N` 结构均不改动；Gap 对标（Phase 3.5）
-不是独立步骤，只作为评审视角。运行时 `task_plan.md` 的 `FDE Review Checklist` 章节
+**挂载 ≠ 新增阶段**：步骤编号、步骤名与 `6+3+4+N` 结构均不改动；Gap 对标（Phase 3.5）不是独立步骤，只作为评审视角。运行时 `task_plan.md` 的 `FDE Review Checklist` 章节
 只引用本清单、不复制正文，避免产生第二份可漂移口径。检查点分布见
 `capability-twin-orchestrator/references/workflows.md` 的 FDE Checkpoints 节。
+
+**运行态落地（2026-11-17 起）**：挂载点不只是路由表声明——编排器会把 `skills_granted`
+与 `fde_checkpoint` 随指令下发给承担该步骤的子代理，且这 8 个 `AGENT.md` 各自写入了
+本清单的执行义务（含 `fde_checklist` 输出字段）。判定规则：`fde_checklist` 存在 `fail`
+时该步骤不得声明成功，也不得进入 `human-review-gatekeeper-agent` 的 `release` 结论。
 
 ## 5. 执行检查清单（每次评审必须逐条过）
 

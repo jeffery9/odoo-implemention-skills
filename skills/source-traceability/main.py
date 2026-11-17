@@ -8,11 +8,52 @@ import json
 import os
 import re
 import ast
+import logging
 from typing import Dict, List, Any, Tuple
 from pathlib import Path
 
-# 导入配置管理器
-from configuration_manager import get_paths
+logger = logging.getLogger(__name__)
+
+# 未配置源码时使用的哨兵路径：确保任何 join 结果都不存在，
+# 从而把「未配置」暴露为 invalid，而不是悄悄命中相对路径或误判为通过。
+_UNCONFIGURED_ROOT = os.path.join(os.sep, "__odoo_source_not_configured__")
+
+
+def get_paths() -> Dict[str, str]:
+    """
+    解析 Odoo 源码根目录。
+
+    取代已不存在的 configuration_manager 模块（该导入曾导致本技能整体不可用）。
+    兼容两种常见布局：
+        <root>/addons/<module>          发布包布局
+        <root>/odoo/addons/<module>     源码仓库布局（本机 odoo-19.0 属此类）
+    """
+    env_root = (os.environ.get("ODOO_SOURCE_PATH") or "").strip()
+    if not env_root:
+        logger.warning(
+            "ODOO_SOURCE_PATH 未设置，源码追溯将无法定位文件，所有引用会被判为 invalid"
+        )
+        return {
+            "root": _UNCONFIGURED_ROOT,
+            "source_root": _UNCONFIGURED_ROOT,
+            "addons_root": _UNCONFIGURED_ROOT,
+            "enterprise_root": _UNCONFIGURED_ROOT,
+            "configured": "false",
+        }
+
+    root = Path(env_root).expanduser().resolve()
+    addons_candidates = (root / "addons", root / "odoo" / "addons")
+    addons = next((p for p in addons_candidates if p.is_dir()), root / "addons")
+    enterprise_candidates = (root / "enterprise", root.parent / "enterprise")
+    enterprise = next((p for p in enterprise_candidates if p.is_dir()), root / "enterprise")
+
+    return {
+        "root": str(root),
+        "source_root": str(root),
+        "addons_root": str(addons),
+        "enterprise_root": str(enterprise),
+        "configured": "true",
+    }
 
 
 class SourceTraceabilityAnalyzer:
@@ -27,7 +68,17 @@ class SourceTraceabilityAnalyzer:
         ]
         paths = get_paths()
         self.source_root = paths["source_root"]
+        self.addons_root = paths.get("addons_root", self.source_root)
         self.enterprise_root = paths["enterprise_root"]
+        self.source_configured = paths.get("configured") == "true"
+
+    def _search_roots(self) -> List[str]:
+        """返回用于定位源码文件的候选根目录（去重、保持优先级）"""
+        roots: List[str] = []
+        for r in (self.source_root, self.addons_root, self.enterprise_root):
+            if r and r not in roots:
+                roots.append(r)
+        return roots
 
     def analyze(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -171,18 +222,27 @@ class SourceTraceabilityAnalyzer:
         expected_class = reference.get("expected_class", "")
         expected_function = reference.get("expected_function", "")
 
-        # 检查文件是否存在（社区版优先）
-        full_path = os.path.join(self.source_root, file_path.lstrip("/"))
-        if not os.path.exists(full_path):
-            # 检查企业版
-            full_path = os.path.join(self.enterprise_root, file_path.lstrip("/"))
+        # 依次在候选根下定位文件（兼容 <root>/addons 与 <root>/odoo/addons 两种布局）
+        rel_path = file_path.lstrip("/")
+        full_path = ""
+        for candidate_root in self._search_roots():
+            candidate = os.path.join(candidate_root, rel_path)
+            if os.path.exists(candidate):
+                full_path = candidate
+                break
 
-        if not os.path.exists(full_path):
+        if not full_path:
+            roots_available = any(os.path.isdir(r) for r in self._search_roots())
+            reason = (
+                "File not found in community or enterprise repository"
+                if roots_available
+                else "ODOO_SOURCE_PATH is not set; cannot locate source files"
+            )
             return {
                 "reference": reference,
                 "file_path": file_path,
                 "validation_status": "invalid",
-                "validation_details": "File not found in community or enterprise repository",
+                "validation_details": reason,
                 "evidence": ""
             }
 

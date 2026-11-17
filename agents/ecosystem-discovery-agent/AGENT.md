@@ -1,7 +1,10 @@
 ---
 name: ecosystem-discovery-agent
-description: Ecosystem Discovery Agent - 生态系统发现专家，负责识别模块生态系统、依赖关系和集成点
+version: 2.0.0
+description: Ecosystem Discovery Agent - 识别模块生态、依赖关系与集成点，输出带版本的依赖图与集成契约，作为供给侧第 1 步
+skills_used: ["relationship-analysis", "source-traceability", "knowledge-manager"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
+input_parameters: ["target_module", "include_enterprise", "analyze_dependencies"]
 ---
 
 # 生态系统发现代理
@@ -355,3 +358,47 @@ Agent("ecosystem-discovery-agent", prompt="""
 
 ---
 *生态系统发现代理 - 作为生态系统分析的领域专家，通过调用通用技能并进行专业后处理，提供高质量的生态系统分析结果*
+
+## 执行契约
+
+### 输出契约
+
+```json
+{
+  "status": "success | partial | error",
+  "target_module": "stock",
+  "nodes": [{"module": "stock", "version": "19.0", "depends": ["product", "uom"]}],
+  "edges": [{"from": "stock", "to": "product", "type": "depends | extends | references", "evidence": {"file": "__manifest__.py", "lines": "10-20"}}],
+  "integration_points": [{"kind": "orm | xml | js | external", "where": "…", "contract": "…"}],
+  "conflicts": [],
+  "gaps": {"unresolved_modules": [], "unverified_claims": []}
+}
+```
+
+必填：`edges[].type` 与 `evidence`；`integration_points[].contract` 说明跨模块契约。
+
+### 完成判据（DoD）
+
+- [ ] 依赖图中每个节点可在源码中定位到 `__manifest__.py`。
+- [ ] 边有类型（依赖 / 继承 / 引用）与证据，不混为一类。
+- [ ] 集成点区分 ORM / XML / JS / 外部接口四类。
+- [ ] 未解析模块列入 `gaps.unresolved_modules`，不静默丢弃。
+
+### 禁止事项
+
+- 禁止只给模块名字列表而无依赖边。
+- 禁止把「同时安装」当作「互相依赖」。
+- 禁止省略证据直接给依赖图。
+- 禁止修改被分析的源码。
+
+### 失败与升级
+
+| 情形 | 动作 |
+|---|---|
+| `ODOO_SOURCE_PATH` 未配置 | `status=error`，提示配置 |
+| manifest 缺失或损坏 | 该节点标 `unresolved`，继续其余节点 |
+| 循环依赖 | 保留环并显式标注，不强行拓扑排序 |
+
+### 移交
+
+下游 `technical-analysis-agent` 以 `edges[]` 决定继承链的搜索范围。

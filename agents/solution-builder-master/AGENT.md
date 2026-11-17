@@ -1,7 +1,10 @@
 ---
 name: solution-builder-master
-description: 解决方案构建大师 - 集成自动化解决方案构建、敏捷实施管理和智能变更处理功能
+version: 2.0.0
+description: 解决方案构建大师 - 集成方案构建、敏捷实施与变更处理，负责把架构决策串成可执行变更序列并管理回退
+skills_used: ["template-processor", "configuration-management", "file-operations"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
+input_parameters: ["target_module", "solution_scope", "change_scope"]
 ---
 
 # 解决方案构建大师 (Solution Builder Master)
@@ -381,7 +384,59 @@ Agent("solution-builder-master", prompt="""
 - **分析深度**: 分析结果的详细程度
 - **一致性**: 不同Agent结果的一致性
 - **完整性**: 分析结果的完整性
-- **可信度**: 结果的可信度评分
+- **可信度**: 按 Trusted / Unverified / Rejected 三态计数，**不折算总分**（FDE §7）
 
 ---
 *Solution Builder Master Agent - 作为高级编排器，集成并扩展现有Agent和Skill生态系统，提供完整的解决方案构建、实施和变更管理能力*
+
+## 执行契约
+
+### 输出契约
+
+```json
+{
+  "status": "success | partial | error",
+  "target_module": "mrp",
+  "solution_plan": [
+    {"seq": 1, "change": "继承 mrp.production 增加分摊字段", "adr_ref": "ADR-001", "reversible": true}
+  ],
+  "change_management": {
+    "sequence_locked": true,
+    "rollback_order": [1],
+    "backup_required_before": [1]
+  },
+  "verification": [{"seq": 1, "method": "查 mrp.production 字段存在", "result": "pass | fail | not_run"}],
+  "delegated_agents": ["industry-requirements-agent", "ecosystem-discovery-agent"],
+  "gaps": {"missing_inputs": [], "unverified_claims": []}
+}
+```
+
+必填：`solution_plan[].adr_ref`、`change_management.rollback_order`、`verification[].result`。
+
+### 完成判据（DoD）
+
+- [ ] 每个变更可回溯到 ADR 编号。
+- [ ] 变更顺序满足依赖（配置先于数据，数据先于验证）。
+- [ ] 回退顺序为变更顺序的逆序，且不可逆步骤已标备份要求。
+- [ ] 每条变更的验证结果如实填写，未运行为 `not_run`。
+- [ ] 编排调用产生的委派记录在 `delegated_agents`，不隐式调用。
+
+### 禁止事项
+
+- 禁止修改 Odoo 核心源码。
+- 禁止跳过验证直接标记完成。
+- 禁止在 `change_management` 缺失时执行变更。
+- 禁止用「可信度评分」这类总分替代逐条判定（FDE §7）。
+
+### 失败与升级
+
+| 情形 | 动作 |
+|---|---|
+| ADR 缺失 | `status=error`，要求先完成架构决策 |
+| 变更依赖冲突 | 保留冲突清单，交 `solution-architect-agent` 重排 |
+| 验证失败 | 标 `fail`，按 `rollback_order` 回退，不继续后续变更 |
+
+### 移交
+
+下游 `code-autogenerator-agent` 按 `solution_plan` 生成补丁；
+`quality-gate-and-registration-agent` 按 `verification[]` 复核。

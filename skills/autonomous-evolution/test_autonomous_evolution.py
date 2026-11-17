@@ -11,6 +11,8 @@ import time
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 本技能实现位于 scripts/，需显式加入导入路径，否则 pytest 收集阶段报 No module named 'main'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + os.sep + "scripts")
 
 from main import main
 

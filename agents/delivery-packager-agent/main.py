@@ -17,7 +17,7 @@ def main():
             return
 
         # 纯 I/O 职责：物理落地
-        project_root = Path(__file__).resolve().parents[3]
+        project_root = Path(__file__).resolve().parents[2]
         output_path = project_root / f"docs/functional/{target}_v19_functional.md"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         

@@ -7,8 +7,13 @@ Knowledge Manager Skill 测试文件
 import unittest
 import json
 import os
+import sys
 import tempfile
 import time
+
+# 本技能实现位于 scripts/，需显式加入导入路径
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
+
 from main import KnowledgeManager
 
 

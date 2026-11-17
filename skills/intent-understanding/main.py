@@ -16,12 +16,14 @@ import re
 from pathlib import Path
 import uuid
 
-# Add project paths
-project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
-sys.path.append(str(project_root / ".claude/scripts"))
+# Add project paths（按本文件定位仓库根，不依赖 CWD，也不依赖历史 .claude/scripts）
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(repo_root))
+sys.path.append(str(repo_root / "scripts"))
 
 from capability_registry import CapabilityRegistry
+
+_REGISTRY_PATH = repo_root / "skills" / "capability-twin-orchestrator" / "capability_registry.json"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ class IntentUnderstandingSkill:
 
     def __init__(self):
         self.skill_id = f"intent-understanding-{str(uuid.uuid4())[:8]}"
-        self.capability_registry = CapabilityRegistry("capability_registry.json")
+        self.capability_registry = CapabilityRegistry(_REGISTRY_PATH)
 
         # Define keyword mappings for different intent categories
         self.workflow_keywords = {
@@ -386,6 +388,33 @@ def execute_skill(skill_params: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+
+
+# --- 命名兼容层 -----------------------------------------------------------
+# 历史实现使用 camelCase，测试与外部调用方使用 snake_case。显式登记别名，
+# 避免两套命名继续分叉；新增方法应直接写 snake_case。
+_SNAKE_ALIASES = {
+    "_perform_intent_analysis": "performIntentAnalysis",
+    "_identify_workflow_type": "identifyWorkflowType",
+    "_identify_target_module": "identifyTargetModule",
+    "_identify_analysis_focus": "identifyAnalysisFocus",
+    "_identify_detail_level": "identifyDetailLevel",
+    "_calculate_confidence": "calculateConfidence",
+    "_determine_clarifications": "determineClarifications",
+    "perform_intent_analysis": "performIntentAnalysis",
+    "identify_workflow_type": "identifyWorkflowType",
+    "identify_target_module": "identifyTargetModule",
+    "identify_analysis_focus": "identifyAnalysisFocus",
+    "identify_detail_level": "identifyDetailLevel",
+    "calculate_confidence": "calculateConfidence",
+    "determine_clarifications": "determineClarifications",
+    "analyze_intent": "analyzeIntent",
+    "generate_suggested_workflow": "generateSuggestedWorkflow",
+    "extract_keywords": "extractKeywords",
+}
+for _snake, _camel in _SNAKE_ALIASES.items():
+    if not hasattr(IntentUnderstandingSkill, _snake):
+        setattr(IntentUnderstandingSkill, _snake, getattr(IntentUnderstandingSkill, _camel))
 
 
 def main():

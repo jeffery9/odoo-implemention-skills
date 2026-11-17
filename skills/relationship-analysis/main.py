@@ -6,12 +6,52 @@ Relationship Analysis Skill 主执行文件
 
 import json
 import os
+import logging
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Dict, List, Any, Set
 from collections import defaultdict
 
-# 导入配置管理器
-from configuration_manager import get_paths
+logger = logging.getLogger(__name__)
+
+# 未配置源码时使用的哨兵路径：确保任何 join 结果都不存在
+_UNCONFIGURED_ROOT = os.path.join(os.sep, "__odoo_source_not_configured__")
+
+
+def get_paths() -> Dict[str, str]:
+    """
+    解析 Odoo 源码根目录。
+
+    取代已不存在的 configuration_manager 模块（该导入曾导致本技能整体不可用）。
+    本技能按 `<root>/<module>/__manifest__.py` 查找模块，因此返回的
+    community/addons 根必须是**直接包含模块目录**的那一层。
+    """
+    env_root = (os.environ.get("ODOO_SOURCE_PATH") or "").strip()
+    if not env_root:
+        logger.warning(
+            "ODOO_SOURCE_PATH 未设置，模块依赖分析将无法读取 manifest，结果会退化为空"
+        )
+        return {
+            "root": _UNCONFIGURED_ROOT,
+            "source_root": _UNCONFIGURED_ROOT,
+            "addons_root": _UNCONFIGURED_ROOT,
+            "enterprise_root": _UNCONFIGURED_ROOT,
+            "configured": "false",
+        }
+
+    root = Path(env_root).expanduser().resolve()
+    addons_candidates = (root / "addons", root / "odoo" / "addons")
+    addons = next((p for p in addons_candidates if p.is_dir()), root / "addons")
+    enterprise_candidates = (root / "enterprise", root.parent / "enterprise")
+    enterprise = next((p for p in enterprise_candidates if p.is_dir()), root / "enterprise")
+
+    return {
+        "root": str(root),
+        "source_root": str(addons),
+        "addons_root": str(addons),
+        "enterprise_root": str(enterprise),
+        "configured": "true",
+    }
 
 
 class RelationshipAnalyzer:

@@ -20,15 +20,34 @@ class CapabilityRegistry:
     Registry for managing capability units (agents, skills, and other executable components)
     """
 
-    def __init__(self, registry_path: Path):
+    def __init__(self, registry_path: Path, create_if_missing: bool = False):
         """
         Initialize the capability registry
+
+        Args:
+            registry_path: 注册表文件路径
+            create_if_missing: 仅当显式要求时才允许创建空注册表。
+                默认 False —— 文件缺失应视为配置错误并抛错，
+                避免「在错误目录启动 → 静默生成空表 → 所有能力查不到」的假绿。
         """
         self.registry_path = Path(registry_path)
+        self.create_if_missing = create_if_missing
         self.capabilities = {}
+
+        # 注册表存放仓库相对路径（形如 `agents/xxx`），需据此推导仓库根做解析。
+        # 注册表位于 <repo>/skills/capability-twin-orchestrator/，故 parents[2] 即仓库根。
+        try:
+            self.base_dir = self.registry_path.resolve().parents[2]
+        except (IndexError, OSError):
+            self.base_dir = Path.cwd()
 
         # Load existing registry or create new one
         self._load_registry()
+
+    def _resolve_path(self, raw_path: str) -> Path:
+        """把注册表中的路径解析为绝对路径（兼容历史绝对路径与相对路径）"""
+        p = Path(raw_path)
+        return p if p.is_absolute() else (self.base_dir / p)
 
     def _load_registry(self):
         """
@@ -39,18 +58,26 @@ class CapabilityRegistry:
                 with open(self.registry_path, 'r', encoding='utf-8') as f:
                     self.capabilities = json.load(f)
                 logger.info(f"Loaded capability registry from {self.registry_path}")
+                return
             except Exception as e:
                 logger.error(f"Error loading capability registry: {e}")
                 self.capabilities = {}
-        else:
-            # Create default registry structure
-            self.capabilities = {
-                "agents": {},
-                "skills": {},
-                "capabilities": {}
-            }
-            self._save_registry()
-            logger.info(f"Created new capability registry at {self.registry_path}")
+                return
+
+        if not self.create_if_missing:
+            raise FileNotFoundError(
+                f"Capability registry not found: {self.registry_path}. "
+                "运行 discover_capabilities.py 重建注册表，或显式传入 create_if_missing=True。"
+            )
+
+        # Create default registry structure (explicit opt-in only)
+        self.capabilities = {
+            "agents": {},
+            "skills": {},
+            "capabilities": {}
+        }
+        self._save_registry()
+        logger.info(f"Created new capability registry at {self.registry_path}")
 
     def _save_registry(self):
         """
@@ -118,7 +145,7 @@ class CapabilityRegistry:
                 "timestamp": self._get_timestamp()
             }
 
-        capability_path = Path(capability.get("path", ""))
+        capability_path = self._resolve_path(capability.get("path", ""))
         main_py = capability_path / "main.py"
         if not main_py.exists():
             main_py = capability_path / "scripts" / "main.py"
@@ -173,21 +200,38 @@ class CapabilityRegistry:
         # If it's a Prompt-based Agent (only AGENT.md exists)
         agent_md = capability_path / "AGENT.md"
         if agent_md.exists():
+            granted = list(params.get("skills_granted", []) or [])
+            unknown = [s for s in granted if s not in self.capabilities.get("skills", {})]
+            if unknown:
+                logger.warning(
+                    f"{name}: skills_granted 含未注册或非技能条目 {unknown}（已透传，但调用方应修正路由表）"
+                )
             return {
                 "status": "pending_instruction",
                 "capability_type": "prompt_agent",
                 "instruction_file": str(agent_md),
                 "target_module": params.get("target_module"),
                 "goal": params.get("goal"),
+                # 技能授予必须透传，否则被授予的技能（含 FDE 检查点）永远到不了执行者
+                "skills_granted": granted,
+                "unknown_skills": unknown,
+                "shared_context_keys": sorted((params.get("shared_context") or {}).keys()),
+                "workflow_id": params.get("workflow_id"),
+                "execution_contract": (
+                    "执行前先加载 skills_granted 中每个技能的 SKILL.md 并遵守其约束；"
+                    "仅在产出物满足这些技能的检查清单后才可声明本步骤成功；"
+                    "无法完成时报 error 并写明缺失的输入或证据，不得返回成功空结果。"
+                ),
                 "timestamp": self._get_timestamp()
             }
 
+        # 既无 Python 入口也无 AGENT.md：不能假装执行过
         return {
-            "status": "executed",
+            "status": "unsupported",
             "capability_name": name,
             "capability_type": capability.get("type", "unknown"),
             "parameters": params,
-            "result": f"Executed {name} (Metadata only)",
+            "error": f"{name} 既无 main.py 也无 AGENT.md，无法执行",
             "timestamp": self._get_timestamp(),
             "workflow_id": params.get("workflow_id", "unknown")
         }
@@ -203,7 +247,7 @@ class CapabilityRegistry:
 # Example usage and testing
 if __name__ == "__main__":
     # Test the capability registry
-    registry = CapabilityRegistry(Path("test_registry.json"))
+    registry = CapabilityRegistry(Path("test_registry.json"), create_if_missing=True)
 
     # Register some example capabilities
     registry.register_capability("agents", "ecosystem-discovery-agent", {

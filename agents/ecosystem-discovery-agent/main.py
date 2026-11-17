@@ -17,8 +17,8 @@ def main():
             return
         
         source_root = Path(source_root_str)
-        project_root = Path(__file__).resolve().parents[3]
-        graph_script = project_root / "CAPABILITY_TWIN/scripts/odoo_module_graph.py"
+        project_root = Path(__file__).resolve().parents[2]
+        graph_script = project_root / "scripts/odoo_module_graph.py"
 
         # 1. 物理调用用户提供的 odoo_module_graph.py
         # 探测全量模块依赖 (使用 -p 指定多个插件目录)

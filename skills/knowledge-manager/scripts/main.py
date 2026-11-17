@@ -14,6 +14,21 @@ from pathlib import Path
 from datetime import datetime
 
 
+def _ensure_dir(path: Path) -> Path:
+    """
+    确保目录存在。
+
+    兼容不完全实现 exist_ok 的受限运行时（沙箱 / 自定义 shim 会抛 FileExistsError）；
+    若目标确实不是目录，仍如实抛错，避免掩盖真实故障。
+    """
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        if not path.is_dir():
+            raise
+    return path
+
+
 class KnowledgeManager:
     """知识管理器主类"""
 
@@ -23,7 +38,7 @@ class KnowledgeManager:
             "cache_management", "lifecycle_management"
         ]
         self.cache_dir = Path(tempfile.gettempdir()) / "knowledge_base"
-        self.cache_dir.mkdir(exist_ok=True)
+        _ensure_dir(self.cache_dir)
         self.index_file = self.cache_dir / "knowledge_index.json"
         self._load_index()
 
