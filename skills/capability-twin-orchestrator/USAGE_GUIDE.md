@@ -63,6 +63,29 @@ Coordinate solution workflows:
 3. Implement error handling and recovery mechanisms
 4. Use parallel execution when appropriate
 5. Document workflow decisions and progress
+6. Keep business scenarios in `.feature` files — never duplicate them in deliverables
+
+## Business Scenario Gate (Gherkin BDD)
+
+Every workflow runs a spec gate before analysis and again at Step 10→11:
+
+```python
+Skill("capability-twin-orchestrator", config={
+    "target_module": "mrp",
+    "workflow_type": "full_analysis",
+    "bdd": {"enabled": True, "blocking": True}
+})
+```
+
+- `status: blocked` + `blocked_at` means a spec error stopped the pipeline; fix
+  `skills/gherkin-bdd/features/<module>/*.feature` and rerun.
+- `satisfies_module: false` means no spec exists for that module (the gate fell back to the
+  repo baseline). Analysis may continue, but scenario-dependent deliverables are skipped.
+- `render_deliverables_bundle` derives `scenario_ids`, `gherkin_feature`,
+  `generated_uat_table` and related fields from the spec and reports `blocked_templates`
+  for anything it refused to render.
+- Drafts only: `{"bdd": {"blocking": false}}` records the failure without stopping the run.
+  It is not a way to claim G2/G3 completion.
 
 ## Common Use Cases
 

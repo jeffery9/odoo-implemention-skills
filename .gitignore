@@ -1,0 +1,22 @@
+# 运行时产物与本地环境
+capability_twin_runs/
+kb/shards/
+kb/mem/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# 本地覆盖
+.env
+*.local

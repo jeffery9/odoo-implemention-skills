@@ -28,6 +28,7 @@ from capability_registry import CapabilityRegistry
 from config import CapabilityTwinConfig
 from file_operations import SafeFileUpdater, validate_module_name
 from errors import ErrorHandler, WorkflowError, ErrorSeverity
+from bdd_gate import BDDGate, SCENARIO_DEPENDENT_TEMPLATES
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,6 +83,12 @@ run the 9-item checklist in skills/fde-methodology/SKILL.md section 5. Record pe
 pass / fail / n/a + evidence. No weighted score, no maturity grade, no auto-filled human judgement.
 - [ ] FDE review recorded at checkpoints (attached to existing steps, not new phases)
 
+## BDD Spec Gate (attached to G2, not a new phase)
+Business scenarios are authored in skills/gherkin-bdd/features/*.feature (single source of truth).
+- [ ] L1 Gherkin spec gate passed (error=0)
+- [ ] Derived UAT / step stubs / traceability matrix generated from the validated spec
+- [ ] G3 sign-off uses the derived UAT script, not hand-written steps
+
 ## Decisions Made
 - [Decision]: Using workflow ID {self.workflow_id} for tracking
 
@@ -131,13 +138,14 @@ Capability Twin analysis of the {self.target_module} module using the 6+3+4+N wo
     def update_task_plan_status(self, new_status: str, phase: str = None):
         """Update the status section in task_plan.md"""
         def update_func(content: str) -> str:
-            if phase:
-                content = content.replace(f"**Currently in Phase 1** - Setting up workflow",
-                                        f"**Currently in {phase}** - {new_status}")
-            else:
-                content = content.replace("## Status\n**Currently in Phase 1** - Setting up workflow",
-                                        f"## Status\n**Currently in Phase 1** - {new_status}")
-            return content
+            target_phase = phase or "Phase 1"
+            line = f"**Currently in {target_phase}** - {new_status}"
+            # 用整行替换而不是匹配初始文案：状态行被改过一次后，
+            # 原来的 replace 锚点就消失了，后续更新会静默失效（例如门禁阻断状态写不进去）。
+            pattern = re.compile(r"\*\*Currently in [^*]+\*\* - [^\n]*")
+            if pattern.search(content):
+                return pattern.sub(line, content, count=1)
+            return content.replace("## Status", f"## Status\n{line}", 1)
 
         SafeFileUpdater.safe_file_update(self.task_plan_path, update_func)
 
@@ -181,6 +189,25 @@ Capability Twin analysis of the {self.target_module} module using the 6+3+4+N wo
 
         SafeFileUpdater.safe_file_update(self.task_plan_path, update_func)
 
+    def update_bdd_gate(self, passed: bool, detail: str, artifact: str = ""):
+        """
+        把规格门禁结果写回 task_plan.md。
+
+        门禁状态必须落在计划文件里，而不是只存在于返回值中 ——
+        否则中断后重跑的人无法判断上一次到底过没过。
+        """
+        def update_func(content: str) -> str:
+            mark = "x" if passed else " "
+            line = f"- [{mark}] L1 Gherkin spec gate passed (error=0) — {detail}"
+            if artifact:
+                line += f" | artifact: {artifact}"
+            pattern = re.compile(r"- \[[ x]\] L1 Gherkin spec gate passed[^\n]*")
+            if pattern.search(content):
+                return pattern.sub(line, content, count=1)
+            return content.replace("## Decisions Made", f"{line}\n\n## Decisions Made")
+
+        SafeFileUpdater.safe_file_update(self.task_plan_path, update_func)
+
     def read_task_plan(self):
         """Read the current task plan for attention refresh"""
         return self.task_plan_path.read_text(encoding='utf-8')
@@ -198,6 +225,77 @@ class CapabilityTwinOrchestratorSkill:
         self.subagent_results = {}
         self.workflow_history = []
         self.file_tracker = None  # Initialize file tracker to None, will be set later
+        # 规格门禁：由 preflight 实例化，后续步骤复用同一次判定结果
+        self.bdd_gate: Optional[BDDGate] = None
+        self.bdd_run: Dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # Gherkin BDD 规格门禁
+    # 挂载在既有流程边界（preflight / Step 10→11 / Step 13），不新增阶段编号。
+    # ------------------------------------------------------------------
+    def _make_bdd_gate(self, params: Dict[str, Any]) -> BDDGate:
+        raw = params.get("bdd")
+        cfg: Dict[str, Any] = raw if isinstance(raw, dict) else {}
+        self.bdd_gate = BDDGate(
+            features_dir=cfg.get("features_dir"),
+            output_dir=cfg.get("output_dir"),
+            enabled=bool(cfg.get("enabled", True)),
+        )
+        return self.bdd_gate
+
+    def _bdd_preflight(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        流程启动前的规格门禁（G2 前置条件）。
+
+        - `fail`（有规格但违规）默认阻断整条流水线；
+        - `missing`（该模块尚无 `.feature`）不阻断分析，但会阻止场景类交付物打包。
+        """
+        raw = params.get("bdd")
+        cfg: Dict[str, Any] = raw if isinstance(raw, dict) else {}
+        gate = self.bdd_gate or self._make_bdd_gate(params)
+
+        run = gate.run(module=params.get("target_module"),
+                       stage="G2-preflight", derive=False)
+        self.bdd_run = run
+
+        blocking = bool(cfg.get("blocking", True))
+        blocked = blocking and run.get("status") == "fail"
+
+        if self.file_tracker:
+            self.file_tracker.update_bdd_gate(
+                passed=bool(run.get("satisfies_module")),
+                detail=BDDGate.summary_line(run),
+                artifact=run.get("report_path") or "",
+            )
+            self.file_tracker.add_notes(
+                "BDD Spec Gate (preflight)",
+                f"status={run.get('status')} scope={run.get('scope')} "
+                f"features_dir={run.get('features_dir')} "
+                f"report={run.get('report_path')}",
+            )
+            if blocked:
+                codes = ", ".join(i.get("code", "") for i in run.get("blocking_issues", [])[:5])
+                self.file_tracker.log_error(
+                    f"BDD spec gate blocked the pipeline at G2 preflight ({codes})")
+
+        logger.info(f"BDD spec gate preflight: {BDDGate.summary_line(run)}")
+        return {"run": run, "blocked": blocked, "blocking": blocking}
+
+    def _bdd_gate_stage(self, params: Dict[str, Any], stage: str,
+                        derive: bool = False,
+                        unit_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+        """在既有步骤边界复用同一门禁引擎，避免多套判定口径。"""
+        gate = self.bdd_gate or self._make_bdd_gate(params)
+        run = gate.run(module=params.get("target_module"), stage=stage,
+                       derive=derive, unit_ids=unit_ids)
+        self.bdd_run = run
+        if self.file_tracker:
+            self.file_tracker.update_bdd_gate(
+                passed=bool(run.get("satisfies_module")),
+                detail=f"[{stage}] " + BDDGate.summary_line(run),
+                artifact=run.get("report_path") or "",
+            )
+        return run
 
     def execute_workflow(self, workflow_params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -251,6 +349,30 @@ class CapabilityTwinOrchestratorSkill:
             self.file_tracker.update_task_plan_phase(1, "completed", "Setup and initialization")
             self.file_tracker.update_task_plan_status("Moving to supply-side analysis", "Phase 2")
 
+            # ---- Gherkin BDD 规格门禁：G2 前置，失败即阻断（不进入分析阶段）----
+            preflight = self._bdd_preflight(workflow_params)
+            self.shared_context["bdd_gate"] = {
+                "status": preflight["run"].get("status"),
+                "scope": preflight["run"].get("scope"),
+                "features_dir": preflight["run"].get("features_dir"),
+                "report_path": preflight["run"].get("report_path"),
+            }
+            if preflight["blocked"]:
+                self.file_tracker.update_task_plan_status(
+                    "Blocked by BDD spec gate", "Phase 2")
+                logger.error("Workflow blocked by BDD spec gate before analysis")
+                return {
+                    "workflow_id": self.workflow_id,
+                    "status": "blocked",
+                    "blocked_at": "BDD Spec Gate (G2 preflight)",
+                    "gate": preflight["run"],
+                    "target_module": target_module,
+                    "workflow_type": workflow_params.get("workflow_type", "full_analysis"),
+                    "next_action": "修正 .feature 规格后重跑；或在入参显式设置 bdd.blocking=false 仅作草稿分析",
+                    "timestamp": datetime.now().isoformat(),
+                    "workflow_history": self.workflow_history,
+                }
+
             # Execute based on workflow type
             workflow_type = workflow_params.get("workflow_type", "full_analysis")
 
@@ -269,6 +391,7 @@ class CapabilityTwinOrchestratorSkill:
             result["workflow_id"] = self.workflow_id
             result["final_shared_context"] = self.shared_context
             result["workflow_history"] = self.workflow_history
+            result.setdefault("bdd_gate", self.shared_context.get("bdd_gate", {}))
 
             logger.info(f"Completed Capability Twin workflow: {self.workflow_id}")
             return result
@@ -464,7 +587,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Solution Architecture",
                 "agent_type": "solution-architect-agent",
                 "sub_goal": f"define solution architecture for {params.get('target_module')}",
-                "skills_granted": ["documentation-miner", "relationship-analysis", "template-processor"],
+                "skills_granted": ["documentation-miner", "relationship-analysis", "template-processor", "gherkin-bdd"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -475,7 +598,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Implementation Guide Analysis",
                 "agent_type": "implementation-guide-agent",
                 "sub_goal": f"create implementation guide for {params.get('target_module')}",
-                "skills_granted": ["documentation-miner", "template-processor", "data-exchange", "fde-methodology"],
+                "skills_granted": ["documentation-miner", "template-processor", "data-exchange", "fde-methodology", "gherkin-bdd"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -548,7 +671,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Capability Unit Extraction",
                 "agent_type": "capability-extractor-agent",
                 "sub_goal": f"extract capability units from {params.get('target_module')} analysis",
-                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager", "quality-gate", "fde-methodology"],
+                "skills_granted": ["generic-analyzer", "source-traceability", "knowledge-manager", "quality-gate", "fde-methodology", "gherkin-bdd"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "inputs": ["comprehensive_analysis_report"],
@@ -572,7 +695,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Trustworthiness Audit",
                 "agent_type": "trustworthiness-auditor-agent",
                 "sub_goal": f"audit trustworthiness of {params.get('target_module')} results",
-                "skills_granted": ["source-traceability", "quality-gate", "knowledge-manager", "fde-methodology"],
+                "skills_granted": ["source-traceability", "quality-gate", "knowledge-manager", "fde-methodology", "gherkin-bdd"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -583,7 +706,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Human Review Gatekeeper",
                 "agent_type": "human-review-gatekeeper-agent",
                 "sub_goal": f"perform human review of {params.get('target_module')} results",
-                "skills_granted": ["quality-gate", "knowledge-manager", "fde-methodology"],
+                "skills_granted": ["quality-gate", "knowledge-manager", "fde-methodology", "gherkin-bdd"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -592,8 +715,15 @@ class CapabilityTwinOrchestratorSkill:
         ]
 
         results = []
+        gate_run: Dict[str, Any] = {}
         for step in workflow_steps:
             logger.info(f"Executing step {step['step']}: {step['name']}")
+
+            # 打包步骤直接消费已通过门禁的规格产物，不另造一套场景描述
+            if step["step"] == 11 and gate_run:
+                step["config"]["bdd_artifacts"] = gate_run.get("derived", {})
+                step["config"]["bdd_gate_report"] = gate_run.get("report_path")
+                step["config"]["scenario_deliverables_blocked"] = not gate_run.get("satisfies_module")
 
             # Update task plan with current step
             if self.file_tracker:
@@ -625,6 +755,61 @@ class CapabilityTwinOrchestratorSkill:
                     f"Step {step['step']}: {step['name']}",
                     f"Result: {json.dumps(subagent_result, default=str, ensure_ascii=False)[:500]}..."  # Truncate for readability
                 )
+
+            # ---- 挂载点：Step 10 → Step 11 ----
+            # 能力单元抽取完成后立即做 G2 规格门禁，通过才允许派生 UAT / 步骤桩 / 矩阵。
+            # 失败即中止，避免把不合格规格包装成交付物（门禁必须能真正拦住东西）。
+            if step["step"] == 10:
+                unit_ids = self._extract_unit_ids(subagent_result)
+                gate_run = self._bdd_gate_stage(params, stage="G2", derive=True,
+                                                unit_ids=unit_ids)
+                results.append({
+                    "step": None,
+                    "name": "BDD Spec Gate (mounted at Step 10→11, not a new phase)",
+                    "result": gate_run,
+                })
+                self.subagent_results["BDD Spec Gate"] = gate_run
+                self.shared_context["bdd_gate"] = {
+                    "status": gate_run.get("status"),
+                    "scope": gate_run.get("scope"),
+                    "report_path": gate_run.get("report_path"),
+                    "derived": gate_run.get("derived", {}),
+                }
+                if self.file_tracker:
+                    self.file_tracker.add_notes(
+                        "BDD Spec Gate (Step 10→11)",
+                        f"{BDDGate.summary_line(gate_run)}; "
+                        f"units_without_scenario={gate_run.get('coverage', {}).get('units_without_scenario', [])}")
+                    self.file_tracker.add_to_analysis_report(
+                        "BDD Spec Gate (G2)",
+                        json.dumps({k: gate_run.get(k) for k in
+                                    ("status", "scope", "features", "scenarios",
+                                     "errors", "warnings", "coverage", "derived")},
+                                   ensure_ascii=False, default=str))
+
+                if gate_run.get("status") == "fail":
+                    codes = ", ".join(i.get("code", "")
+                                      for i in gate_run.get("blocking_issues", [])[:5])
+                    if self.file_tracker:
+                        self.file_tracker.log_error(
+                            f"BDD spec gate failed at Step 10→11 ({codes}); packaging aborted")
+                    outcome = self._workflow_outcome(results)
+                    return {
+                        "workflow_type": "capability_extraction_workflow",
+                        "status": "blocked",
+                        "blocked_at": "BDD Spec Gate (G2, Step 10→11)",
+                        "gate": gate_run,
+                        **{k: v for k, v in outcome.items() if k != "status"},
+                        "results": results,
+                    }
+
+                if not gate_run.get("satisfies_module") and self.file_tracker:
+                    # 无本模块规格：分析可以继续，但 G2 场景证据不成立，必须在计划里留痕
+                    self.file_tracker.add_notes(
+                        "BDD Spec Gate (Step 10→11) — module spec absent",
+                        f"scope={gate_run.get('scope')}；场景类交付物（UAT / Scenario Solution）"
+                        f"在打包阶段会被跳过，直至 skills/gherkin-bdd/features/"
+                        f"{params.get('target_module')}/ 下补齐 .feature")
 
         outcome = self._workflow_outcome(results)
         if self.file_tracker:
@@ -689,7 +874,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Quality Gate and Registration",
                 "agent_type": "quality-gate-and-registration-agent",
                 "sub_goal": f"perform quality checks and register capability for requirement: {params.get('requirement', 'custom')}",
-                "skills_granted": ["quality-gate", "knowledge-manager", "data-exchange", "fde-methodology"],
+                "skills_granted": ["quality-gate", "knowledge-manager", "data-exchange", "fde-methodology", "gherkin-bdd"],
                 "config": {
                     "requirement": params.get("requirement", "custom_requirement"),
                     "target_module": params.get("target_module")
@@ -705,6 +890,36 @@ class CapabilityTwinOrchestratorSkill:
             if self.file_tracker:
                 self.file_tracker.update_task_plan_status(f"Executing {step['name']}", f"Customization - Step {step['step']}")
                 self.file_tracker.add_notes(f"Step {step['step']}: {step['name']}", f"Starting execution with goal: {step['sub_goal']}")
+
+            # ---- 挂载点：N 步客制化 第 4 步（质量门与注册）----
+            # 交付前必须确认该模块的场景规格仍然成立，否则注册的是未经场景验证的能力。
+            if step["step"] == 4:
+                gate_run = self._bdd_gate_stage(params, stage="G2-customization", derive=True)
+                results.append({
+                    "step": None,
+                    "name": "BDD Spec Gate (mounted at Customization Step 4, not a new phase)",
+                    "result": gate_run,
+                })
+                self.subagent_results["BDD Spec Gate"] = gate_run
+                step["config"]["bdd_artifacts"] = gate_run.get("derived", {})
+                step["config"]["bdd_gate_report"] = gate_run.get("report_path")
+                if gate_run.get("status") == "fail":
+                    codes = ", ".join(i.get("code", "")
+                                      for i in gate_run.get("blocking_issues", [])[:5])
+                    if self.file_tracker:
+                        self.file_tracker.log_error(
+                            f"BDD spec gate failed at Customization Step 4 ({codes}); registration aborted")
+                    outcome = self._workflow_outcome(results)
+                    return {
+                        "workflow_type": "customization",
+                        "requirement": params.get("requirement", "custom_requirement"),
+                        "target_module": params.get("target_module"),
+                        "status": "blocked",
+                        "blocked_at": "BDD Spec Gate (G2, Customization Step 4)",
+                        "gate": gate_run,
+                        **{k: v for k, v in outcome.items() if k != "status"},
+                        "results": results,
+                    }
 
             # Execute sub-agent
             subagent_result = self.execute_subagent(
@@ -770,7 +985,12 @@ class CapabilityTwinOrchestratorSkill:
         }
         agg["requires_semantic_execution"] = agg["steps_delegated"] > 0
         phase_statuses = [p.get("status") for p in phases]
-        if all(s == "completed" for s in phase_statuses):
+        if "blocked" in phase_statuses:
+            # 门禁拦截优先于完成度汇总：被 G2 规格门禁挡住时不能报 partial/completed
+            agg["status"] = "blocked"
+            agg["blocked_at"] = next((p.get("blocked_at") for p in phases
+                                      if p.get("status") == "blocked"), "BDD Spec Gate")
+        elif all(s == "completed" for s in phase_statuses):
             agg["status"] = "completed"
         elif all(s == "failed" for s in phase_statuses):
             agg["status"] = "failed"
@@ -833,6 +1053,13 @@ class CapabilityTwinOrchestratorSkill:
         这是 README §6 记录的 `operation: render_deliverables_bundle` 的实际实现：
         按 bundle_type 选取模板集合，逐份调用 template-processor 落盘。
         以「文件是否真的生成」判定成功，不以返回值声称成功。
+
+        接入 Gherkin BDD 后的行为：
+        - 渲染前先跑规格门禁（`skills/gherkin-bdd`，只读复用，不复制规则）；
+        - 场景变量（`scenario_ids` / `gherkin_feature` / `generated_uat_table` 等）
+          由 `.feature` 机械派生，人工传入的同名字段不得覆盖（唯一事实源）；
+        - 门禁未通过时跳过 `SCENARIO_SOLUTION` / `CONSULTANT_UAT_SCRIPT`，
+          宁可少交付两份文件，也不产出与规格脱钩的验收步骤。
         """
         bundle_type = params.get("bundle_type", "handover_package")
         key = self.BUNDLE_ALIASES.get(bundle_type, bundle_type)
@@ -845,7 +1072,33 @@ class CapabilityTwinOrchestratorSkill:
                 "aliases": sorted(self.BUNDLE_ALIASES),
             }
 
-        context = params.get("context_data", {}) or {}
+        context = dict(params.get("context_data", {}) or {})
+        target_module = params.get("target_module") or context.get("target_module")
+
+        # ---- Gherkin BDD 门禁：场景类交付物必须由已通过的规格派生 ----
+        gate = self.bdd_gate or self._make_bdd_gate(params)
+        run = gate.run(module=target_module, stage="G3-derive", derive=True)
+        self.bdd_run = run
+
+        allow_invalid = params.get("allow_invalid_scenarios") is True
+        # 只有「该模块自己的规格通过」才允许产出场景类交付物；
+        # 全仓基线通过不能替该模块背书（否则会渲染出别的模块的场景）。
+        gate_blocked = (not run.get("satisfies_module")) and not allow_invalid
+
+        derived_ctx = gate.deliverable_context(module=target_module, run=run)
+        # 派生字段优先：`.feature` 是唯一事实源，人工传入的同名字段不得覆盖
+        overridden = []
+        for k, v in derived_ctx.items():
+            if k in context and context[k] not in (None, "", v):
+                overridden.append(k)
+            context[k] = v
+
+        blocked_templates: List[str] = []
+        if gate_blocked:
+            blocked_templates = [t for t in templates
+                                 if t in SCENARIO_DEPENDENT_TEMPLATES]
+            templates = [t for t in templates if t not in blocked_templates]
+
         out_dir = Path(params.get("output_directory")
                        or (self.config.get_output_path() / "deliverables" / key))
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -865,16 +1118,37 @@ class CapabilityTwinOrchestratorSkill:
             else:
                 failed.append({"template": name, "reason": "未生成输出文件"})
 
+        if rendered and (failed or blocked_templates):
+            status = "partial"
+        elif rendered:
+            status = "success"
+        elif blocked_templates and not failed:
+            status = "blocked"
+        else:
+            status = "failed"
+
         return {
             "workflow_type": "render_deliverables_bundle",
             "bundle_type": key,
             "output_directory": str(out_dir),
-            "status": "success" if not failed else ("partial" if rendered else "failed"),
-            "steps_total": len(templates),
+            "status": status,
+            "steps_total": len(templates) + len(blocked_templates),
             "steps_completed": len(rendered),
             "steps_failed": len(failed),
             "rendered": rendered,
             "failed": failed,
+            "blocked_templates": blocked_templates,
+            "scenario_binding": {
+                "source": "skills/gherkin-bdd/features",
+                "status": run.get("status"),
+                "scope": run.get("scope"),
+                "satisfies_module": run.get("satisfies_module"),
+                "features": run.get("features"),
+                "scenarios": run.get("scenarios"),
+                "report_path": run.get("report_path"),
+            },
+            "gate": run,
+            "context_overrides": overridden,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -986,6 +1260,20 @@ class CapabilityTwinOrchestratorSkill:
             # Log error to file tracker if it exists
             if self.file_tracker:
                 self.file_tracker.log_error(f"Error updating shared context for {step_name}: {str(e)}")
+
+    @staticmethod
+    def _extract_unit_ids(result: Dict[str, Any]) -> List[str]:
+        """从 Step 10 结果中收集能力单元编号，用于检查「单元是否被场景覆盖」。"""
+        ids: List[str] = []
+        for key in ("capability_units", "units"):
+            for item in (result.get(key) or []):
+                if isinstance(item, dict):
+                    uid = item.get("id") or item.get("unit_id")
+                else:
+                    uid = item
+                if isinstance(uid, str) and uid.strip():
+                    ids.append(uid.strip())
+        return ids
 
     def _summarize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """

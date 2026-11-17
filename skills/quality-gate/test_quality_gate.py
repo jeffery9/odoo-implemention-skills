@@ -19,9 +19,10 @@ class TestQualityGate(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
 
     def test_supported_check_types(self):
-        """测试支持的检查类型"""
+        """测试支持的检查类型（scenario_spec 委托 gherkin-bdd 引擎）"""
         expected_types = [
-            "code_quality", "standard_compliance", "quality_gate", "documentation_quality"
+            "code_quality", "standard_compliance", "quality_gate",
+            "documentation_quality", "scenario_spec"
         ]
         self.assertEqual(self.gate.supported_check_types, expected_types)
 

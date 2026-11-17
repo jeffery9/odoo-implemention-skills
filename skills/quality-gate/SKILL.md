@@ -91,6 +91,35 @@ Enforce quality gate for code submission:
 """)
 ```
 
+## BDD Scenario Checks (`scenario_spec` check_type)
+
+`supported_check_types` now includes a fifth type, `scenario_spec`, implemented in
+`main.py::_check_scenario_spec`. It does **not** re-implement Gherkin rules: it loads
+`skills/gherkin-bdd/scripts/gherkin_gate.py` and maps its report into this skill's
+`issues` / `gate_decision` schema.
+
+```json
+{
+  "check_type": "scenario_spec",
+  "target_path": "skills/gherkin-bdd/features/<module>"
+}
+```
+
+- `check_result` = `pass` only when `errors == 0`; warnings are reported, never blocking.
+- `quality_details.gate_decision.blocking_issues` lists `BDD-xxx file:line message`
+  so the caller can block packaging without re-parsing the engine output.
+- Mapping: engine `severity=error` → `error`, everything else → `warning`;
+  `scenario_metrics` carries `features / scenarios / steps / errors / warnings`.
+- Rules and 20 validation codes: `skills/gherkin-bdd/references/authoring-rules.md`.
+- Generated artifacts (UAT / step stubs / matrix) are **not** test results; only an
+  external runner (pytest-bdd / behave) produces G2 evidence.
+
+CLI:
+
+```bash
+python3 skills/quality-gate/main.py '{"check_type":"scenario_spec","target_path":"skills/gherkin-bdd/features"}'
+```
+
 ## Best Practices
 
 - Define clear quality rules and standards before starting checks
