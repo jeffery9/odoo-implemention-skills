@@ -96,4 +96,24 @@ Skill("capability-twin-orchestrator", params={
 大网格采用 `JSONL` 与本地向量碎片格式管理长期记忆。通过自主进化引擎，每次运行所沉淀出的新 API、废弃警告或业务模式，会自动回写到长期事实中，并在遇到接口变动 warning 时自动启动“自愈修补”（Self-Healing Loop），更新 Agent 自生的 `SKILL.md` 补丁规则（Supplement Rule），让大网格的心智时刻与 Odoo 版本的升级节奏保持神级同步。
 
 ---
+
+## 8. FDE 2.0 方法论对齐（摘要内置）
+
+框架遵循 **FDE（Forward Deployed Engineering, 前沿部署工程）2.0** 的价值流、
+证据与度量纪律；但 `6+3+4+N` 是引擎的研究与交付生命周期，**不是** FDE 价值流
+七活动，两者不做一一绑定、不互相改名（2.0 §6.4）。
+
+*   **能力单元**（执行检查清单）：`skills/fde-methodology/SKILL.md`
+*   **边界裁定与刻意不做项**：`docs/FDE-2.0对齐说明.md`
+*   **内置摘要**（`skills/fde-methodology/references/`）：[F] 基础标准 / [M] 详解 v1.3 /
+    四册方法论 / 对齐先例，共 580 行、对应原文 5784 行（10.0%），带 `§x.y` 条款号锚点，
+    即该能力单元的全部依据，离线可用、不依赖仓外文档。
+*   **流水线检查点**：四条流水线（供给侧 6 / 需求侧 3 / 提取与 QA 4 / N 步客制化）在
+    步骤 2、6、7、9、10、12、13 与 N 步第 4 步挂载该能力单元，按 §5 清单逐条记录
+    「通过 / 不通过 / 不适用 + 依据」；不新增阶段、不改 `6+3+4+N` 编号，
+    详见 `skills/capability-twin-orchestrator/references/workflows.md`。
+
+新增或调整能力后执行 `python3 CAPABILITY_TWIN/discover_capabilities.py` 重建能力注册中心。
+
+---
 *Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*

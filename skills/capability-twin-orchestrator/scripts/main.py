@@ -76,6 +76,12 @@ Analyze the {self.target_module} module using the Capability Twin framework (6+3
 3. What are the business processes it supports?
 4. What improvements or customizations are needed?
 
+## FDE Review Checklist
+At the mounted checkpoints (Steps 2, 6, 7, 9, 10, 12, 13 and Customization Step 4),
+run the 9-item checklist in skills/fde-methodology/SKILL.md section 5. Record per item:
+pass / fail / n/a + evidence. No weighted score, no maturity grade, no auto-filled human judgement.
+- [ ] FDE review recorded at checkpoints (attached to existing steps, not new phases)
+
 ## Decisions Made
 - [Decision]: Using workflow ID {self.workflow_id} for tracking
 
@@ -319,7 +325,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Technical Analysis",
                 "agent_type": "technical-analysis-agent",
                 "sub_goal": f"analyze technical implementation of {params.get('target_module')}",
-                "skills_granted": ["source-traceability", "knowledge-manager", "relationship-analysis"],
+                "skills_granted": ["source-traceability", "knowledge-manager", "relationship-analysis", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": "deep" if params.get("detail_level") == "comprehensive" else params.get("detail_level"),
@@ -365,7 +371,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Comprehensive Analysis",
                 "agent_type": "comprehensive-analysis-agent",
                 "sub_goal": f"synthesize comprehensive view of {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "knowledge-manager", "relationship-analysis"],
+                "skills_granted": ["generic-analyzer", "knowledge-manager", "relationship-analysis", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "inputs": [
@@ -445,7 +451,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Industry Requirements Analysis",
                 "agent_type": "industry-requirements-agent",
                 "sub_goal": f"analyze industry requirements for {params.get('target_module')}",
-                "skills_granted": ["generic-analyzer", "relationship-analysis"],
+                "skills_granted": ["generic-analyzer", "relationship-analysis", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -467,7 +473,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Implementation Guide Analysis",
                 "agent_type": "implementation-guide-agent",
                 "sub_goal": f"create implementation guide for {params.get('target_module')}",
-                "skills_granted": ["template-processor", "knowledge-manager", "data-exchange"],
+                "skills_granted": ["template-processor", "knowledge-manager", "data-exchange", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -539,7 +545,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Capability Unit Extraction",
                 "agent_type": "capability-extractor-agent",
                 "sub_goal": f"extract capability units from {params.get('target_module')} analysis",
-                "skills_granted": ["knowledge-manager", "data-exchange", "quality-gate"],
+                "skills_granted": ["knowledge-manager", "data-exchange", "quality-gate", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "inputs": ["comprehensive_analysis_report"],
@@ -563,7 +569,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Trustworthiness Audit",
                 "agent_type": "trustworthiness-auditor-agent",
                 "sub_goal": f"audit trustworthiness of {params.get('target_module')} results",
-                "skills_granted": ["quality-gate", "source-traceability", "knowledge-manager"],
+                "skills_granted": ["quality-gate", "source-traceability", "knowledge-manager", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -574,7 +580,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Human Review Gatekeeper",
                 "agent_type": "human-review-gatekeeper-agent",
                 "sub_goal": f"perform human review of {params.get('target_module')} results",
-                "skills_granted": ["quality-gate", "knowledge-manager"],
+                "skills_granted": ["quality-gate", "knowledge-manager", "fde-methodology"],
                 "config": {
                     "target_module": params.get("target_module"),
                     "analysis_depth": params.get("detail_level")
@@ -679,7 +685,7 @@ class CapabilityTwinOrchestratorSkill:
                 "name": "Quality Gate and Registration",
                 "agent_type": "quality-gate-and-registration-agent",
                 "sub_goal": f"perform quality checks and register capability for requirement: {params.get('requirement', 'custom')}",
-                "skills_granted": ["quality-gate", "knowledge-manager", "data-exchange"],
+                "skills_granted": ["quality-gate", "knowledge-manager", "data-exchange", "fde-methodology"],
                 "config": {
                     "requirement": params.get("requirement", "custom_requirement"),
                     "target_module": params.get("target_module")
