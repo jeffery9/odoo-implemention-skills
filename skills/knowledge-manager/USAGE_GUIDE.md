@@ -21,10 +21,12 @@ result = Skill("knowledge-manager", config={
 For more complex knowledge management, you can specify additional parameters:
 
 ```python
+import os
+
 result = Skill("knowledge-manager", config={
     "operation": "retrieve",
     "knowledge_key": "analysis_result",
-    "source_path": "/Users/jeffery/_project/topdon/EUx/odoo-19.0",
+    "source_path": os.environ["ODOO_SOURCE_PATH"],   # 不写死本机路径
     "cache_ttl": 3600
 })
 ```

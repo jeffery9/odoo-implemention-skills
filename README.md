@@ -15,7 +15,9 @@
 ### 2.1 环境准备
 在启动框架之前，请确保正确设置了本地 Odoo 19 源码所在的物理路径，以便各智能体能够通过 `Grep` / `Glob` / `Read` 工具进行精确的底层白盒模式挖掘：
 ```bash
-export ODOO_SOURCE_PATH="/Users/jeffery/_project/topdon/EUx/odoo-19.0"
+# 指向你自己的 Odoo 19 源码根目录（该目录下应包含 odoo/addons 或 addons）。
+# 仓库不提供任何默认路径：未设置时白盒分析会显式报错，而不是猜一个"碰巧存在"的目录。
+export ODOO_SOURCE_PATH="/path/to/odoo-19.0"
 ```
 
 ### 2.2 自动盘点与能力注册
@@ -71,10 +73,12 @@ Skill("capability-twin-orchestrator", params={
 
 ## 5. 关键配置说明 (config.py)
 
-主控配置文件位于：`CAPABILITY_TWIN/skills/capability-twin-orchestrator/scripts/config.py`。
-*   `odoo_source_path`：Odoo 19 源码在本地的物理绝对路径（优先读取环境变量 `ODOO_SOURCE_PATH`）。
-*   `knowledge_base_path`：本地持久化知识库（KB）的存放根目录。
-*   `output_directory`：分析、渲染及交付物汇总任务的临时输出目录。
+主控配置文件位于：`skills/capability-twin-orchestrator/scripts/config.py`（按技能容器相对定位，安装态下位于 `.claude/skills/...`）。
+*   `registry_path`：能力注册表位置，默认仓内 `capability_registry.json`。
+*   `output_directory`：运行时产物根目录，默认 `<工作区>/capability_twin_runs`。
+*   `file_tracking_enabled` / `enable_backup_files`：文件追踪与备份开关。
+
+Odoo 源码路径不写入配置，只读环境变量 `ODOO_SOURCE_PATH`；知识库位置由 `context-memory-manager` 决定（`<工作区>/kb/mem`）。
 
 ---
 
@@ -258,6 +262,35 @@ python3 <skills_root>/capability-twin-orchestrator/scripts/framework_paths.py
 
 > 边界提醒：安装成功只代表工具可用，不代表任何业务场景已通过验收。
 > 自动化通过 = 工程完成（G2）；交付验收 ≠ 价值实现（FDE 2.0 §5.5）。
+
+### 10.6 历史项目维护脚本（可选）
+
+仓库根下另有 5 个脚本，只服务于早期交付目录（下称 CT 项目），**不属于** `6+3+4+N`
+流水线，也不随技能分发。它们不内置任何默认路径，必须显式指定；路径解析统一走
+`legacy_paths.py`。
+
+| 脚本 | 作用 | 需要 |
+|---|---|---|
+| `clean_capability_registry.py` | 移除 `obsidian-markdown` 条目 | 注册表 |
+| `clean_extra_components.py` | 移除非核心组件（obsidian 系列等） | 注册表 |
+| `clean_extra_references.py` | 只保留 `agents` / `skills` 顶级节点 | 注册表 |
+| `update_capability_registry.py` | 把 `.claude/...` 绝对路径改写为 CT 目录 | CT 根目录 |
+| `filter_skills.py` | 从 `skills/` 移除指定组件（**不可逆**） | CT 根目录 |
+
+```bash
+# 方式一：环境变量（推荐，一次设置重复使用）
+export CT_LEGACY_PROJECT="/path/to/odoo19-study/CT"
+python3 update_capability_registry.py
+
+# 方式二：命令行参数
+python3 clean_extra_components.py --registry "/path/to/CT/Deliverables_Package/capability_registry.json"
+
+# filter_skills 默认干跑，只打印将删除的目录；确认无误再加 --yes
+python3 filter_skills.py --ct-dir "/path/to/CT"
+python3 filter_skills.py --ct-dir "/path/to/CT" --yes
+```
+
+未提供路径时脚本以退出码 2 结束并打印两种可用调用方式，不会猜一个"碰巧存在"的目录。
 
 ---
 *Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*

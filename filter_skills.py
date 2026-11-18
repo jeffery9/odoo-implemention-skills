@@ -1,75 +1,67 @@
-import os
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+从历史 CT 项目的 skills 目录移除指定的非核心组件。
+
+用法：
+    # 先看会删什么（默认就是干跑，不删任何东西）
+    python3 filter_skills.py --ct-dir /path/to/CT
+    # 确认后真正执行
+    python3 filter_skills.py --ct-dir /path/to/CT --yes
+
+删除是不可逆的目录移除（shutil.rmtree），因此默认只打印计划；
+必须显式 `--yes` 才动手，避免换机器后路径指错位置而误删。
+"""
+
+import argparse
+import sys
 import shutil
-from pathlib import Path
 
-# 定义Capability Twin 3.0框架的核心组件
-core_skills = {
-    "autonomous-evolution",
-    "cache-management",
-    "configuration-management", 
-    "context-memory-manager",
-    "data-exchange",
-    "enhanced-intent-understanding",
-    "file-operations",
-    "generic-analyzer",
-    "intent-to-action-mapper",
-    "intent-understanding",
-    "json-canvas",
-    "knowledge-manager",
-    "obsidian-bases",
-    "obsidian-markdown",
-    "quality-gate",
-    "relationship-analysis",
-    "source-traceability",
-    "template-processor",
-    "planning-with-files",
-    "workflow-engine"
-}
+import legacy_paths
 
-core_agents = {
-    "ecosystem-discovery-agent",
-    "technical-analysis-agent",
-    "function-analysis-agent",
-    "domain-analysis-agent",
-    "business-process-agent",
-    "comprehensive-analysis-agent",
-    "industry-requirements-agent",
-    "solution-architect-agent",
-    "implementation-guide-agent",
-    "capability-extractor-agent",
-    "delivery-packager-agent",
-    "trustworthiness-auditor-agent",
-    "human-review-gatekeeper-agent",
-    "solution-builder-master"
-}
+#: 历史交付中判定为非核心的技能（业务口径，非环境相关配置）
+DEFAULT_NON_CORE = {"obsidian-markdown"}
 
-core_orchestrators = {
-    "capability-twin-orchestrator"
-}
 
-# 定义非核心组件（用户提到的markdown等）
-non_core_components = {
-    "obsidian-markdown",  # 这是用户提到的需要移除的组件
-    # 其他非核心组件...
-}
+def main():
+    parser = argparse.ArgumentParser(description="移除 CT 项目 skills 目录下的非核心组件")
+    parser.add_argument("--ct-dir", help="CT 项目根目录（缺省读 CT_LEGACY_PROJECT）")
+    parser.add_argument("--components", nargs="+", metavar="NAME",
+                        help=f"要移除的技能目录名，默认 {sorted(DEFAULT_NON_CORE)}")
+    parser.add_argument("--yes", action="store_true",
+                        help="确认执行删除；不加此参数只打印计划（干跑）")
+    args = parser.parse_args()
 
-# 获取所有非核心组件
-all_non_core = non_core_components
+    ct_dir = legacy_paths.ct_project_dir(args.ct_dir)
+    skills_dir = ct_dir / "skills"
+    if not skills_dir.is_dir():
+        raise legacy_paths.UsageError(f"skills 目录不存在：{skills_dir}")
 
-# 检查并移除非核心组件
-ct_skills_dir = Path("/Users/jeffery/odoo19-study/CT/skills")
-ct_agents_dir = Path("/Users/jeffery/odoo19-study/CT/agents")
+    targets = args.components or sorted(DEFAULT_NON_CORE)
+    print(f"CT skills 目录: {skills_dir}")
+    print(f"待处理组件: {', '.join(targets)}")
 
-print("检查并移除非核心组件...")
-
-# 移除指定的非核心组件
-for component in all_non_core:
-    component_path = ct_skills_dir / component
-    if component_path.exists():
+    for component in targets:
+        component_path = skills_dir / component
+        if not component_path.exists():
+            print(f"组件不存在或已被移除: {component}")
+            continue
+        if not args.yes:
+            print(f"[干跑] 将删除: {component_path}")
+            continue
         print(f"移除非核心组件: {component}")
         shutil.rmtree(component_path)
         print(f"已移除: {component}")
-    else:
-        print(f"组件不存在或已被移除: {component}")
 
-print("非核心组件清理完成。")
+    if not args.yes:
+        print("干跑结束，未做任何改动。确认无误后加 --yes 执行。")
+    print("非核心组件清理完成。")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except legacy_paths.UsageError as exc:
+        print(f"错误：{exc}", file=sys.stderr)
+        sys.exit(2)

@@ -12,17 +12,33 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-# Standard framework paths
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(PROJECT_ROOT / "CAPABILITY_TWIN/scripts"))
-sys.path.append(str(PROJECT_ROOT / "CAPABILITY_TWIN/skills/capability-twin-orchestrator/scripts"))
+# 按本文件定位框架：不假设仓库目录名、不依赖 CWD。
+# 早期版本以上级目录为锚点、并把仓库目录名直接拼进路径，换目录名或改用 worktree 即失效。
+REPO_ROOT = Path(__file__).resolve().parent
+ORCHESTRATOR_SCRIPTS = REPO_ROOT / "skills" / "capability-twin-orchestrator" / "scripts"
+sys.path.insert(0, str(ORCHESTRATOR_SCRIPTS))
 
 try:
+    import framework_paths
     from config import CapabilityTwinConfig
     from main import execute_skill
-except ImportError:
-    print("Error: Framework components not found.")
+except ImportError as exc:
+    print(f"Error: Framework components not found under {ORCHESTRATOR_SCRIPTS} ({exc}).")
     sys.exit(1)
+
+
+def odoo_source_path() -> Path:
+    """Odoo 源码根目录。只认 ODOO_SOURCE_PATH，不提供任何写死的默认值。"""
+    raw = (os.environ.get("ODOO_SOURCE_PATH") or "").strip()
+    if not raw:
+        raise SystemExit(
+            "ODOO_SOURCE_PATH 未设置：请指向 Odoo 源码根目录"
+            "（该目录下应包含 odoo/addons 或 addons）。"
+        )
+    path = Path(raw).expanduser().resolve()
+    if not path.is_dir():
+        raise SystemExit(f"ODOO_SOURCE_PATH 指向的目录不存在: {path}")
+    return path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -30,9 +46,10 @@ logger = logging.getLogger(__name__)
 class ContinuousMiner:
     def __init__(self):
         self.config = CapabilityTwinConfig()
-        self.kb_mem = self.config.get_kb_path()
+        # 记忆写入用户工作区（CAPABILITY_TWIN_WORKSPACE 或 CWD），与技能安装位置无关
+        self.kb_mem = framework_paths.workspace_root() / "kb" / "mem"
         self.status_file = self.kb_mem / "mining_status.jsonl"
-        self.source_path = self.config.get_odoo_source_path()
+        self.source_path = odoo_source_path()
         self.lock = threading.Lock()
 
     def get_mined_set(self):
