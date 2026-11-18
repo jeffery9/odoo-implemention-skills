@@ -30,6 +30,10 @@ from config import CapabilityTwinConfig
 from file_operations import SafeFileUpdater, validate_module_name
 from errors import ErrorHandler, WorkflowError, ErrorSeverity
 from bdd_gate import BDDGate, SCENARIO_DEPENDENT_TEMPLATES
+try:
+    import framework_paths
+except ImportError:  # pragma: no cover - 独立部署时不应发生，但不阻断核心流程
+    framework_paths = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -244,6 +248,60 @@ class CapabilityTwinOrchestratorSkill:
         )
         return self.bdd_gate
 
+    def _odoo_contract_check(self, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        可选：Odoo 实施契约的只读校验（E1/E2 证据），挂载在既有 preflight 内。
+
+        默认关闭：仅当 `params["odoo_contract"]["enabled"]` 为真时执行。
+        契约技能未安装、导入失败或路径不可达时返回 `unavailable`，
+        **不阻断**流水线——它是加挂的证据层，不是新的门禁阶段。
+        """
+        raw = params.get("odoo_contract")
+        cfg: Dict[str, Any] = raw if isinstance(raw, dict) else {}
+        if not cfg.get("enabled"):
+            return None
+
+        result: Dict[str, Any] = {"enabled": True, "status": "unavailable"}
+        if framework_paths is None:
+            result["reason"] = "framework_paths 不可用"
+            return result
+
+        try:
+            skill_dir = framework_paths.odoo_implementation_dir(required=False)
+            if skill_dir is None:
+                result["reason"] = "odoo-implementation 技能未安装"
+                return result
+
+            validator = skill_dir / "scripts" / "validate_odoo_manifest.py"
+            if not validator.is_file():
+                result["reason"] = f"校验脚本缺失：{validator}"
+                return result
+
+            import importlib.util
+            module_name = "ct_odoo_manifest_validator"
+            spec = importlib.util.spec_from_file_location(module_name, validator)
+            if spec is None or spec.loader is None:
+                result["reason"] = "校验脚本无法加载"
+                return result
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+
+            report = module.run(framework_paths.SKILLS_ROOT,
+                                features_dir=framework_paths.features_dir())
+            result.update({
+                "status": report.get("status", "error"),
+                "manifest_checked": report.get("manifest_checked", 0),
+                "manifest_skipped": report.get("manifest_skipped", 0),
+                "error_count": sum(1 for i in report.get("issues", [])
+                                   if i.get("severity") == "error"),
+                "schema": str(skill_dir / "schemas" / "odoo-implementation.schema.json"),
+            })
+        except Exception as exc:  # 证据层失败不得升级为流程阻断
+            result["status"] = "error"
+            result["reason"] = f"{type(exc).__name__}: {exc}"
+        return result
+
     def _bdd_preflight(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         流程启动前的规格门禁（G2 前置条件）。
@@ -280,7 +338,12 @@ class CapabilityTwinOrchestratorSkill:
                     f"BDD spec gate blocked the pipeline at G2 preflight ({codes})")
 
         logger.info(f"BDD spec gate preflight: {BDDGate.summary_line(run)}")
-        return {"run": run, "blocked": blocked, "blocking": blocking}
+        result: Dict[str, Any] = {"run": run, "blocked": blocked, "blocking": blocking}
+        # 可选扩展字段：缺省时不出现，返回结构对既有调用方保持不变
+        contract = self._odoo_contract_check(params)
+        if contract is not None:
+            result["odoo_contract"] = contract
+        return result
 
     def _bdd_gate_stage(self, params: Dict[str, Any], stage: str,
                         derive: bool = False,
@@ -1128,7 +1191,7 @@ class CapabilityTwinOrchestratorSkill:
         else:
             status = "failed"
 
-        return {
+        result: Dict[str, Any] = {
             "workflow_type": "render_deliverables_bundle",
             "bundle_type": key,
             "output_directory": str(out_dir),
@@ -1152,6 +1215,13 @@ class CapabilityTwinOrchestratorSkill:
             "context_overrides": overridden,
             "timestamp": datetime.now().isoformat(),
         }
+
+        # 可选：登记 Odoo 契约校验摘要；不改变 status，也不新增交付模板
+        contract = self._odoo_contract_check(params)
+        if contract is not None:
+            result["odoo_contract"] = contract
+
+        return result
 
     def execute_subagent(self, agent_type: str, goal: str,
                         skills_granted: List[str], config: Dict[str, Any]) -> Dict[str, Any]:

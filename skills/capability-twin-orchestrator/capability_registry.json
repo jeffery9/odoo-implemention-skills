@@ -774,6 +774,33 @@
         "has_frontmatter": true
       }
     },
+    "odoo-implementation": {
+      "name": "odoo-implementation",
+      "type": "skill",
+      "description": "Odoo 实施能力的机器可读契约层——以可选 ct_ 前缀字段声明技能分层、模块归属、适用版本、场景引用与工作区产物，并提供零依赖校验。不改动 6+3+4+N 工作流、不替换现有技能契约、不新增物理目录层级。",
+      "path": "odoo-implementation",
+      "file": "odoo-implementation/SKILL.md",
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "registered_at": "2026-11-18T22:20:27.812201",
+      "metadata": {
+        "file_format": "Skill file",
+        "has_frontmatter": true
+      },
+      "version": "0.1.0",
+      "skills_used": [
+        "capability-twin-orchestrator",
+        "gherkin-bdd",
+        "quality-gate",
+        "template-processor"
+      ]
+    },
     "quality-gate": {
       "name": "quality-gate",
       "type": "skill",

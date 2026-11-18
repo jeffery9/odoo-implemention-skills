@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "project_id": "{{project_id}}",
+  "artifacts": [
+    {
+      "artifact_id": "{{artifact_id}}",
+      "type": "{{artifact_type}}",
+      "path": "{{artifact_path}}",
+      "produced_by": "{{skill_id}}",
+      "evidence_level": "E1",
+      "scenario_refs": [],
+      "version": 1,
+      "created_at": ""
+    }
+  ],
+  "updated_at": ""
+}
