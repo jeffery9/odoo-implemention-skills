@@ -1,12 +1,19 @@
-# Capability Twin 3.5 Framework (Master Reference & Guide)
+# Capability Twin 3.5 Framework
 
-> **最高指导原则 (Master Mandate)**：只维护唯一一份官方、完备的 `CAPABILITY_TWIN` 框架技术指南，彻底消灭零碎、散乱、重合的历史副本文档。
+> **文档分工 (Document Charter)**：本文件聚焦框架的**使用向**内容——
+> 「框架是什么、怎么调用、怎么安装、怎么用」。仓库的**维护向**内容（改哪里、同步什么、
+> 怎么验证、怎么发布）见 `docs/项目维护指南.md`；两类文档按职能分工，不重复正文。
+> 内容按职能归位：使用说明写入本文件，维护流程写入维护指南。
+
+> 读者定位：使用者只需读到本文件即可；维护者请先读本文件了解系统，再读 `docs/项目维护指南.md` 执行变更。
 
 ---
 
 ## 1. 框架概述 (Framework Overview)
 
-**Capability Twin 3.0** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 18 个专业子智能体和 20 个原子技能有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
+**Capability Twin 3.5** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 18 个专业子智能体和 22 个原子技能有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
+
+准确的技能/智能体数量以能力注册表为准（`skills/capability-twin-orchestrator/capability_registry.json`，当前 22 skills / 18 agents）；本数字随注册表达成变化时更新，维护约束见 `docs/项目维护指南.md` §3。
 
 ---
 
@@ -20,14 +27,7 @@
 export ODOO_SOURCE_PATH="/path/to/odoo-19.0"
 ```
 
-### 2.2 自动盘点与能力注册
-当新增或重构了智能体（`skills/capability-twin-orchestrator/agents/` 目录）或原子技能（`skills/` 目录）时，必须执行自动能力盘点脚本，以重建统一 能力孪生注册中心（`capability_registry.json`）：
-```bash
-# 在仓库根目录执行（脚本内部按自身位置定位，不依赖当前工作目录）
-python3 discover_capabilities.py
-```
-
-### 2.3 高并发多线程采矿（Continuous Mining）
+### 2.2 高并发多线程采矿（Continuous Mining）
 可以通过启动 `mine_odoo_source.py` 开启 **Parallel Agentic Mesh（并行智能体网格）** 高速采矿。系统将自动分配多线程（默认 4 线程），采用 `threading.Lock` 线程锁，并发对 Odoo 核心模块的 `depends`、模型继承、视图树和 ORM 控制流进行高价值业务感知翻译：
 ```bash
 # 执行语法: python3 mine_odoo_source.py [模块限制数量] [并发线程数]
@@ -138,8 +138,6 @@ Skill("capability-twin-orchestrator", params={
     「通过 / 不通过 / 不适用 + 依据」；不新增阶段、不改 `6+3+4+N` 编号，
     详见 `skills/capability-twin-orchestrator/references/workflows.md`。
 
-新增或调整能力后执行 `python3 discover_capabilities.py` 重建能力注册中心。
-
 ---
 
 ## 9. 业务场景统一语言（Gherkin BDD）
@@ -180,13 +178,13 @@ UAT 脚本、追溯矩阵与自动化步骤定义均由工具派生，交付模�
 
 ## 10. 安装与分发（npx skills）
 
-本仓库遵循 Agent Skills 开放格式：21 个技能平铺于 `skills/<name>/SKILL.md`，
+本仓库遵循 Agent Skills 开放格式：22 个技能平铺于 `skills/<name>/SKILL.md`，
 无需额外清单文件，`skills` CLI 可直接发现。
 
 ### 10.1 安装命令
 
 ```bash
-# 整套安装（推荐）：21 个技能一次装齐，技能间依赖天然可解析
+# 整套安装（推荐）：22 个技能一次装齐，技能间依赖天然可解析
 npx skills add <owner>/<repo> --all
 
 # 装到用户级（跨项目可用）
@@ -210,8 +208,9 @@ npx skills add <owner>/<repo> --all --copy
 `--global` 装到用户级 `~/.claude/skills/`；Cursor / Codex 等落到 `.agents/skills/`。
 `npx skills ls` 可查看已装清单。
 
-实测（`npx skills add <repo> --all --copy -a claude-code -y`）：CLI 报告 `Found 21 skills`，
-装完后 `./skills` 与 `.claude/skills` 各 21 份。注意 `--all` 在该 CLI 中表示
+实测（`npx skills add <repo> --all --copy -a claude-code -y`，记录于新增 `odoo-implementation`
+之前，故为 21 个技能）：CLI 报告 `Found 21 skills`，装完后 `./skills` 与 `.claude/skills`
+各 21 份；当前技能数见 §1（22 个）。注意 `--all` 在该 CLI 中表示
 **所有技能 × 所有已检测 agent**，会生成多个 agent 目录；只想装一个 agent 时用 `-a claude-code`。
 
 ### 10.2 必须整套安装的原因
@@ -257,40 +256,11 @@ python3 <skills_root>/capability-twin-orchestrator/scripts/framework_paths.py
 | 技能资源（模板、`.feature`、`agents/`、注册表） | 技能包内部，随安装一起分发 |
 | 运行时产物（`capability_twin_runs/`、`docs/`、`kb/`） | 用户工作区，**不写入技能目录** |
 
-路径解析统一由 `framework_paths.py` 负责，不依赖固定深度的 `parents[N]`；
-`tests/test_install_layout.py` 用真实复制布局做回归，防止改回硬编码。
-
 > 边界提醒：安装成功只代表工具可用，不代表任何业务场景已通过验收。
 > 自动化通过 = 工程完成（G2）；交付验收 ≠ 价值实现（FDE 2.0 §5.5）。
 
-### 10.6 历史项目维护脚本（可选）
-
-仓库根下另有 5 个脚本，只服务于早期交付目录（下称 CT 项目），**不属于** `6+3+4+N`
-流水线，也不随技能分发。它们不内置任何默认路径，必须显式指定；路径解析统一走
-`legacy_paths.py`。
-
-| 脚本 | 作用 | 需要 |
-|---|---|---|
-| `clean_capability_registry.py` | 移除 `obsidian-markdown` 条目 | 注册表 |
-| `clean_extra_components.py` | 移除非核心组件（obsidian 系列等） | 注册表 |
-| `clean_extra_references.py` | 只保留 `agents` / `skills` 顶级节点 | 注册表 |
-| `update_capability_registry.py` | 把 `.claude/...` 绝对路径改写为 CT 目录 | CT 根目录 |
-| `filter_skills.py` | 从 `skills/` 移除指定组件（**不可逆**） | CT 根目录 |
-
-```bash
-# 方式一：环境变量（推荐，一次设置重复使用）
-export CT_LEGACY_PROJECT="/path/to/odoo19-study/CT"
-python3 update_capability_registry.py
-
-# 方式二：命令行参数
-python3 clean_extra_components.py --registry "/path/to/CT/Deliverables_Package/capability_registry.json"
-
-# filter_skills 默认干跑，只打印将删除的目录；确认无误再加 --yes
-python3 filter_skills.py --ct-dir "/path/to/CT"
-python3 filter_skills.py --ct-dir "/path/to/CT" --yes
-```
-
-未提供路径时脚本以退出码 2 结束并打印两种可用调用方式，不会猜一个"碰巧存在"的目录。
+> 安装布局守卫与路径解析实现约束属维护事项，见 `docs/项目维护指南.md` §2、§4.4；
+> 仓库根下不随技能分发的历史维护脚本清单见同文件 §2"历史脚本"小节。
 
 ---
-*Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*
+*Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎*

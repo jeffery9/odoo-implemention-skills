@@ -19,7 +19,7 @@
    `skills/fde-methodology/references/` 下的 4 份内置摘要，共 580 行、对应原文 5784 行
    （压缩比 10.0%），使能力单元**离线自包含**。**本仓不再保留任何仓外文档引用**：
    4 份摘要带 `§x.y` 条款号锚点，即该能力单元的全部执行依据。
-   这样既满足 README「只维护唯一一份官方技术手册」，也避免产生第二份可漂移的口径。
+   这样既与使用向 README 的职能保持分离，也避免产生第二份可漂移的口径。
    本轮产物为**一个能力单元 + 4 份内置摘要 + 一份对齐说明 + 一行 README 入口 + 注册中心重建**。
 2. **框架生命周期与 FDE 价值流不是同一层东西，且不应合并。** [F] §6.4 明确
    Value Stream ≠ Project Lifecycle。本框架的 `6+3+4+N` 是**研究与交付引擎的执行结构**，
@@ -178,7 +178,7 @@
 | `skills/capability-twin-orchestrator/references/workflows.md` | 修改 | 增 `FDE 2.0 Checkpoints` 节：四条流水线的挂载步骤与 §5 检查项映射，声明不新增阶段 |
 | `skills/capability-twin-orchestrator/SKILL.md` | 修改 | Core Framework / Best Practices / Resources 增 FDE 检查点入口 |
 | `docs/FDE-2.0对齐说明.md` | 新增 → 改写 | 本文；§1 增第 4 条融入结论、§2/§5/§7 口径同步为「摘要内置、自包含 + 检查点挂载」 |
-| `README.md` | 增一节入口引用 | 指向能力单元与对齐说明、登记流水线检查点，不复制标准正文（维护唯一官方手册原则） |
+| `README.md` | 增一节入口引用 | 指向能力单元与对齐说明、登记流水线检查点，不复制标准正文（遵循 README 使用向分工） |
 | `skills/capability-twin-orchestrator/capability_registry.json` | 重建 | 由 `discover_capabilities.py` 重扫 Agent / Skill，注册 `fde-methodology`；顺带修正历史遗留的仓库绝对路径 |
 
 > 摘要合计 580 行 / 原文 5784 行（10.0%）。本对齐说明为**判断与边界记录**；
