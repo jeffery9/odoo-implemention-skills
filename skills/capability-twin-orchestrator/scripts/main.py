@@ -17,10 +17,11 @@ import asyncio
 import uuid
 import re
 
-# Add project paths
-project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
-sys.path.append(str(project_root / ".claude/scripts"))
+# 同目录模块（config / bdd_gate / capability_registry / file_operations / errors）
+# 显式入 sys.path：不依赖 CWD，也不依赖调用方预先拼装路径。
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
 from capability_registry import CapabilityRegistry
 
@@ -1032,7 +1033,7 @@ class CapabilityTwinOrchestratorSkill:
 
         return complete_results
 
-    # 交付包 → 模板映射（templates/deliverables/ 下 16 份模板的完整覆盖）
+    # 交付包 → 模板映射（模板由 template-processor 技能内 templates/deliverables/ 提供）
     BUNDLE_TEMPLATES = {
         "strategy":    ["PURPOSE_AND_STRATEGY", "PROJECT_SOLUTION", "STATEMENT_OF_WORK"],
         "consultant":  ["CONSULTANT_CONF_GUIDE", "CONSULTANT_UAT_SCRIPT",

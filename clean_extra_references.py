@@ -1,44 +1,53 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+重建历史 CT 项目的注册表，只保留 `agents` 与 `skills` 两个顶级节点。
+
+用法：
+    python3 clean_extra_references.py --registry /path/to/capability_registry.json
+    CT_LEGACY_PROJECT=/path/to/CT python3 clean_extra_references.py
+"""
+
+import argparse
+import sys
 import json
 
-# 读取capability_registry.json文件
-input_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry.json"
-output_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry.json"
+import legacy_paths
 
-# 读取原始文件内容
-with open(input_file, 'r', encoding='utf-8') as f:
-    original_content = f.read()
 
-# 解析JSON
-data = json.loads(original_content)
+def main():
+    parser = argparse.ArgumentParser(description="只保留 agents / skills 顶级节点")
+    parser.add_argument("--registry",
+                        help="capability_registry.json 路径"
+                             "（缺省读 CT_LEGACY_REGISTRY / CT_LEGACY_PROJECT）")
+    parser.add_argument("--output", help="输出文件路径，默认原地覆盖")
+    args = parser.parse_args()
 
-# 获取实际引用的agents和skills
-actual_agents = set(data.get('agents', {}).keys())
-actual_skills = set(data.get('skills', {}).keys())
+    input_file = legacy_paths.registry_path(args.registry)
+    output_file = legacy_paths.output_path(args.output, input_file)
 
-# 创建新的数据结构，只保留实际引用的组件
-new_data = {
-    "agents": {},
-    "skills": {}
-}
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-# 添加实际引用的agents
-for name in actual_agents:
-    if name in data.get('agents', {}):
-        new_data['agents'][name] = data['agents'][name]
+    # 只保留实际被引用的 agents / skills，其余顶级节点一律丢弃
+    new_data = {
+        "agents": dict(data.get("agents", {})),
+        "skills": dict(data.get("skills", {})),
+    }
 
-# 添加实际引用的skills
-for name in actual_skills:
-    if name in data.get('skills', {}):
-        new_data['skills'][name] = data['skills'][name]
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(new_data, f, ensure_ascii=False, indent=2)
 
-# 将额外的直接引用添加到新的JSON对象中（如果需要）
-# 但这些额外的引用不应该存在，所以我们应该重新构建整个文件
+    print("已重新构建能力注册表文件，只包含实际引用的组件")
+    print(f"Agents: {len(new_data['agents'])}")
+    print(f"Skills: {len(new_data['skills'])}")
+    print(f"已保存到: {output_file}")
 
-# 重新构建文件内容
-with open(output_file, 'w', encoding='utf-8') as f:
-    json.dump(new_data, f, ensure_ascii=False, indent=2)
 
-print(f"已重新构建能力注册表文件，只包含实际引用的组件")
-print(f"Agents: {len(new_data['agents'])}")
-print(f"Skills: {len(new_data['skills'])}")
-print(f"已保存到: {output_file}")
+if __name__ == "__main__":
+    try:
+        main()
+    except legacy_paths.UsageError as exc:
+        print(f"错误：{exc}", file=sys.stderr)
+        sys.exit(2)

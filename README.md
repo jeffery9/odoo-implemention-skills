@@ -15,11 +15,13 @@
 ### 2.1 环境准备
 在启动框架之前，请确保正确设置了本地 Odoo 19 源码所在的物理路径，以便各智能体能够通过 `Grep` / `Glob` / `Read` 工具进行精确的底层白盒模式挖掘：
 ```bash
-export ODOO_SOURCE_PATH="/Users/jeffery/_project/topdon/EUx/odoo-19.0"
+# 指向你自己的 Odoo 19 源码根目录（该目录下应包含 odoo/addons 或 addons）。
+# 仓库不提供任何默认路径：未设置时白盒分析会显式报错，而不是猜一个"碰巧存在"的目录。
+export ODOO_SOURCE_PATH="/path/to/odoo-19.0"
 ```
 
 ### 2.2 自动盘点与能力注册
-当新增或重构了智能体（`agents/` 目录）或原子技能（`skills/` 目录）时，必须执行自动能力盘点脚本，以重建统一 能力孪生注册中心（`capability_registry.json`）：
+当新增或重构了智能体（`skills/capability-twin-orchestrator/agents/` 目录）或原子技能（`skills/` 目录）时，必须执行自动能力盘点脚本，以重建统一 能力孪生注册中心（`capability_registry.json`）：
 ```bash
 # 在仓库根目录执行（脚本内部按自身位置定位，不依赖当前工作目录）
 python3 discover_capabilities.py
@@ -71,16 +73,18 @@ Skill("capability-twin-orchestrator", params={
 
 ## 5. 关键配置说明 (config.py)
 
-主控配置文件位于：`CAPABILITY_TWIN/skills/capability-twin-orchestrator/scripts/config.py`。
-*   `odoo_source_path`：Odoo 19 源码在本地的物理绝对路径（优先读取环境变量 `ODOO_SOURCE_PATH`）。
-*   `knowledge_base_path`：本地持久化知识库（KB）的存放根目录。
-*   `output_directory`：分析、渲染及交付物汇总任务的临时输出目录。
+主控配置文件位于：`skills/capability-twin-orchestrator/scripts/config.py`（按技能容器相对定位，安装态下位于 `.claude/skills/...`）。
+*   `registry_path`：能力注册表位置，默认仓内 `capability_registry.json`。
+*   `output_directory`：运行时产物根目录，默认 `<工作区>/capability_twin_runs`。
+*   `file_tracking_enabled` / `enable_backup_files`：文件追踪与备份开关。
+
+Odoo 源码路径不写入配置，只读环境变量 `ODOO_SOURCE_PATH`；知识库位置由 `context-memory-manager` 决定（`<工作区>/kb/mem`）。
 
 ---
 
 ## 6. 角色化交付物体系（Deliverables Templates）
 
-框架内置 16 份企业级交付模板（位于 `templates/deliverables/`），按角色分四类打包：
+框架内置 16 份企业级交付模板（位于 `skills/template-processor/templates/deliverables/`），按角色分四类打包：
 
 | `bundle_type` | 中文名 | 包含模板 |
 |---|---|---|
@@ -171,6 +175,122 @@ UAT 脚本、追溯矩阵与自动化步骤定义均由工具派生，交付模�
 
 本轮基线：2 个功能 / 5 个场景 / 21 个步骤，`errors=0`、`warnings=0`；能力单元自测 23/23 通过。
 外部 runner（pytest-bdd / behave）未安装，L2 场景执行未计入通过项。
+
+---
+
+## 10. 安装与分发（npx skills）
+
+本仓库遵循 Agent Skills 开放格式：21 个技能平铺于 `skills/<name>/SKILL.md`，
+无需额外清单文件，`skills` CLI 可直接发现。
+
+### 10.1 安装命令
+
+```bash
+# 整套安装（推荐）：21 个技能一次装齐，技能间依赖天然可解析
+npx skills add <owner>/<repo> --all
+
+# 装到用户级（跨项目可用）
+npx skills add <owner>/<repo> --all -g
+
+# 先浏览不安装
+npx skills add <owner>/<repo> --list
+
+# 文件系统不支持符号链接时（Windows / 部分 CI），改为复制
+npx skills add <owner>/<repo> --all --copy
+```
+
+安装位置由 CLI 决定。以 Claude Code 为例，项目级安装会创建两份：
+
+| 路径 | 作用 |
+|---|---|
+| `./skills/<name>/` | 规范副本（单一事实源） |
+| `./.claude/skills/<name>/` | agent 实际加载的副本（symlink 或 `--copy`） |
+| `./skills-lock.json` | 来源与内容哈希，用于 `npx skills update` 校验 |
+
+`--global` 装到用户级 `~/.claude/skills/`；Cursor / Codex 等落到 `.agents/skills/`。
+`npx skills ls` 可查看已装清单。
+
+实测（`npx skills add <repo> --all --copy -a claude-code -y`）：CLI 报告 `Found 21 skills`，
+装完后 `./skills` 与 `.claude/skills` 各 21 份。注意 `--all` 在该 CLI 中表示
+**所有技能 × 所有已检测 agent**，会生成多个 agent 目录；只想装一个 agent 时用 `-a claude-code`。
+
+### 10.2 必须整套安装的原因
+
+框架内存在真实的技能间依赖，**只装单个框架技能会缺资源**：
+
+| 依赖方 | 被依赖 | 用途 |
+|---|---|---|
+| `capability-twin-orchestrator` | `gherkin-bdd` | 加载规格门禁引擎与 `.feature` |
+| `capability-twin-orchestrator` | `template-processor` | 渲染 16 份交付模板 |
+| `capability-twin-orchestrator` | `quality-gate` | 质量门检查 |
+| `intent-understanding` | `capability-twin-orchestrator` | 读取能力注册表与公共模块 |
+
+缺依赖时不会静默降级，而是抛出 `SkillNotFound` 并给出补装命令：
+
+```
+框架依赖的技能 `gherkin-bdd` 未找到。技能容器为 `.../.claude/skills`，其中现有 1 个技能：...
+修复：整套安装 `npx skills add <owner>/<repo> --all`，或单独补装 `... --skill gherkin-bdd`。
+```
+
+可独立单装的能力：`quality-gate`、`file-operations`、`data-exchange`、
+`configuration-management`、`cache-management`、`knowledge-manager`、`json-canvas`、`obsidian-bases` 等。
+
+### 10.3 运行前提
+
+- **Python 3.9+**，仅用标准库；`pytest-bdd` / `behave` 只在执行场景时才需要。
+- `ODOO_SOURCE_PATH`：Odoo 源码根目录，供白盒分析使用。
+- `CAPABILITY_TWIN_WORKSPACE`（可选）：产出根目录，缺省为当前工作目录。
+
+### 10.4 安装后自检
+
+```bash
+python3 <skills_root>/capability-twin-orchestrator/scripts/framework_paths.py
+```
+
+输出 `layout=install` 且 `templates_source=skill` 表示资源全部解析到技能包内部；
+若 `templates_source=legacy`，说明仍在读历史仓库根布局，属异常。
+
+### 10.5 路径与产物约定
+
+| 类别 | 位置 |
+|---|---|
+| 技能资源（模板、`.feature`、`agents/`、注册表） | 技能包内部，随安装一起分发 |
+| 运行时产物（`capability_twin_runs/`、`docs/`、`kb/`） | 用户工作区，**不写入技能目录** |
+
+路径解析统一由 `framework_paths.py` 负责，不依赖固定深度的 `parents[N]`；
+`tests/test_install_layout.py` 用真实复制布局做回归，防止改回硬编码。
+
+> 边界提醒：安装成功只代表工具可用，不代表任何业务场景已通过验收。
+> 自动化通过 = 工程完成（G2）；交付验收 ≠ 价值实现（FDE 2.0 §5.5）。
+
+### 10.6 历史项目维护脚本（可选）
+
+仓库根下另有 5 个脚本，只服务于早期交付目录（下称 CT 项目），**不属于** `6+3+4+N`
+流水线，也不随技能分发。它们不内置任何默认路径，必须显式指定；路径解析统一走
+`legacy_paths.py`。
+
+| 脚本 | 作用 | 需要 |
+|---|---|---|
+| `clean_capability_registry.py` | 移除 `obsidian-markdown` 条目 | 注册表 |
+| `clean_extra_components.py` | 移除非核心组件（obsidian 系列等） | 注册表 |
+| `clean_extra_references.py` | 只保留 `agents` / `skills` 顶级节点 | 注册表 |
+| `update_capability_registry.py` | 把 `.claude/...` 绝对路径改写为 CT 目录 | CT 根目录 |
+| `filter_skills.py` | 从 `skills/` 移除指定组件（**不可逆**） | CT 根目录 |
+
+```bash
+# 方式一：环境变量（推荐，一次设置重复使用）
+export CT_LEGACY_PROJECT="/path/to/odoo19-study/CT"
+python3 update_capability_registry.py
+
+# 方式二：命令行参数
+python3 clean_extra_components.py --registry "/path/to/CT/Deliverables_Package/capability_registry.json"
+
+# filter_skills 默认干跑，只打印将删除的目录；确认无误再加 --yes
+python3 filter_skills.py --ct-dir "/path/to/CT"
+python3 filter_skills.py --ct-dir "/path/to/CT" --yes
+```
+
+未提供路径时脚本以退出码 2 结束并打印两种可用调用方式，不会猜一个"碰巧存在"的目录。
 
 ---
 *Capability Twin 3.5 - 意图驱动的 Odoo 智能交付旗舰引擎 | 唯一官方技术手册*

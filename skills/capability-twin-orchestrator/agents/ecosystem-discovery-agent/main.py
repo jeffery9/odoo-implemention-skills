@@ -4,6 +4,12 @@
 import json, os, sys, subprocess, re
 from pathlib import Path
 
+# 框架路径中枢随 orchestrator 分发：本文件位于 <orchestrator>/agents/<agent>/main.py
+_scripts = Path(__file__).resolve().parents[2] / "scripts"
+if str(_scripts) not in sys.path:
+    sys.path.insert(0, str(_scripts))
+import framework_paths
+
 def main():
     if len(sys.argv) < 2: return
     try:
@@ -17,8 +23,8 @@ def main():
             return
         
         source_root = Path(source_root_str)
-        project_root = Path(__file__).resolve().parents[2]
-        graph_script = project_root / "scripts/odoo_module_graph.py"
+        # 工具脚本随 orchestrator 技能分发，按技能内位置定位，不假设仓库根
+        graph_script = framework_paths.tool_script("odoo_module_graph.py")
 
         # 1. 物理调用用户提供的 odoo_module_graph.py
         # 探测全量模块依赖 (使用 -p 指定多个插件目录)

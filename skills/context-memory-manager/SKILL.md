@@ -9,13 +9,23 @@ Implements a tiered memory system to ensure consistent Odoo 19 delivery.
 
 ## Memory Layers
 1. **Working Context**: Live variables in the orchestrator.
-2. **Episodic Snapshot**: Historic run data in `kb/snapshots/*.jsonl`.
-3. **Semantic Facts**: Persistent Odoo truths in `kb/long_term_facts.jsonl`.
+2. **Episodic Snapshot**: Historic run data in `kb/mem/snapshots/*.jsonl`.
+3. **Semantic Facts**: Persistent Odoo truths in `kb/mem/long_term_facts.jsonl`
+   (usage patterns go to `kb/mem/usage_patterns.jsonl`).
+
+All paths are relative to the **user workspace** (`CAPABILITY_TWIN_WORKSPACE`, or the
+current working directory when unset) — never to the directory the skill was installed in.
 
 ## Core Operations
-- **Remember**: Store an atomic fact or pattern.
-- **Recall**: Fetch knowledge based on a query.
-- **Snapshot**: Freeze the current state for error recovery or auditing.
+- **Remember** (`category=fact|pattern`): append one JSONL line. Append-only, so history
+  is auditable; `recall` returns the latest write per key.
+- **Recall**: fetch knowledge by optional key substring (case-insensitive).
+- **Snapshot** (`run_id`, `context`): freeze the current state for error recovery or auditing.
+
+## Failure Behaviour
+Errors are reported as `{"status": "error", "message": ...}` instead of being swallowed:
+an unknown `category` or `operation`, an empty `key` / `run_id`, and a corrupted JSONL line
+(with file and line number) all fail loudly. Silent success on a bad request loses data.
 
 ## Usage Example
 ```python

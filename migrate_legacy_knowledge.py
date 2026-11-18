@@ -10,7 +10,8 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# 历史资产与脚本同级；用 parents[1] 会指到仓库的上一级目录（worktree 下尤其错得离谱）。
+PROJECT_ROOT = Path(__file__).resolve().parent
 KB_MEM_DIR = PROJECT_ROOT / "kb" / "mem"
 FACTS_FILE = KB_MEM_DIR / "long_term_facts.jsonl"
 PATTERNS_FILE = KB_MEM_DIR / "usage_patterns.jsonl"

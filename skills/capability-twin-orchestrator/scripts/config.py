@@ -5,14 +5,17 @@
 Configuration module for Capability Twin framework
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import framework_paths
+
 # 路径锚定到本文件，避免依赖进程工作目录（CWD）。
-# config.py 位于 <repo>/skills/capability-twin-orchestrator/scripts/
-_SKILL_ROOT = Path(__file__).resolve().parents[1]
-_FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
+# 结构不变量为 `<容器>/<技能>/scripts/`，容器可能是仓库根的 skills/，
+# 也可能是安装后的 .claude/skills/ —— 两种布局由 framework_paths 统一推导。
+_SKILL_ROOT = framework_paths.SKILL_ROOT
+_FRAMEWORK_ROOT = framework_paths.FRAMEWORK_ROOT
 
 
 @dataclass
@@ -23,8 +26,10 @@ class CapabilityTwinConfig:
     # Registry configuration（默认指向仓内真实注册表，不随 CWD 漂移）
     registry_path: str = str(_SKILL_ROOT / "capability_registry.json")
 
-    # File tracking configuration（默认落在框架根目录，避免污染调用方 CWD）
-    output_directory: str = str(_FRAMEWORK_ROOT / "capability_twin_runs")
+    # File tracking configuration（产物恒写用户工作区，不污染技能包）
+    # 用 default_factory 而非直接赋值：产物目录依赖 CWD，
+    # 写成类属性会在导入时冻结，调用方 chdir 后仍写回导入位置。
+    output_directory: str = field(default_factory=lambda: str(framework_paths.default_run_dir()))
     file_tracking_enabled: bool = True
 
     # Performance configuration

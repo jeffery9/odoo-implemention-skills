@@ -52,7 +52,7 @@ The following templates are available via `render_deliverable`:
 
 1. Determine the template operation needed:
    - render: To render template with specific path
-   - render_deliverable: To render a standard Capability Twin deliverable (from templates/deliverables/)
+   - render_deliverable: To render a standard Capability Twin deliverable (from `templates/deliverables/` inside this skill)
    - validate: To validate template syntax and required variables
    - convert: To convert between template formats
    - manage: To manage template lifecycle operations

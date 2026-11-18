@@ -20,10 +20,12 @@ result = Skill("source-traceability", config={
 For more complex validation, you can specify additional parameters:
 
 ```python
+import os
+
 result = Skill("source-traceability", config={
     "verification_type": "consistency_check",
     "target_references": references,
-    "source_path": "/Users/jeffery/_project/topdon/EUx/odoo-19.0",
+    "source_path": os.environ["ODOO_SOURCE_PATH"],   # 不写死本机路径
     "validation_depth": "comprehensive"
 })
 ```

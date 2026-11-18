@@ -1,65 +1,93 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+把历史 CT 项目注册表里的 `.claude/...` 绝对路径改写成 CT 目录下的实际路径。
+
+用法：
+    python3 update_capability_registry.py --ct-dir /path/to/CT
+    CT_LEGACY_PROJECT=/path/to/CT python3 update_capability_registry.py
+
+改写规则（与历史版本一致，只是不再把某台机器的绝对前缀写死）：
+- 旧值里出现 `.claude/agents`  → agents 目录
+- 旧值里出现 `.claude/skills`  → skills 目录
+判定改用路径中段标记 `.claude`，与用户名、盘符、挂载点无关。
+"""
+
+import argparse
+import sys
 import json
-import os
 from pathlib import Path
 
-# 读取原始的capability_registry.json文件
-input_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry.json"
-output_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry_updated.json"
+import legacy_paths
 
-# 读取CT目录的路径
-ct_dir = Path("/Users/jeffery/odoo19-study/CT").resolve()
-print(f"CT目录路径: {ct_dir}")
+#: 旧注册表里指向安装位置的标记
+MARKER = "/.claude"
 
-# 读取skills目录的路径
-skills_dir = ct_dir / "skills"
-print(f"Skills目录路径: {skills_dir}")
 
-# 读取agents目录的路径
-agents_dir = ct_dir / "agents"
-print(f"Agents目录路径: {agents_dir}")
+def _as_posix(value) -> str:
+    return str(value).replace("\\", "/")
 
-# 读取capability_registry.json文件
-with open(input_file, 'r', encoding='utf-8') as f:
-    data = json.load(f)
 
-# 更新路径
-for agent_key, agent_value in data.get("agents", {}).items():
-    if "path" in agent_value and "/Users/jeffery/odoo19-study/.claude/agents" in agent_value["path"]:
-        agent_value["path"] = str(agents_dir)
-    if "file" in agent_value and "/Users/jeffery/odoo19-study/.claude/agents" in agent_value["file"]:
-        # 提取AGENT.md文件名并构建新路径
-        agent_name = agent_key.replace("-", "_")
-        # 确保目录名正确
-        if "agent" in agent_name:
-            agent_dir = agent_name
-        else:
-            agent_dir = agent_name + "_agent"
-        agent_value["file"] = str(agents_dir / agent_dir / "AGENT.md")
+def main():
+    parser = argparse.ArgumentParser(description="改写注册表中的 .claude 绝对路径")
+    parser.add_argument("--ct-dir", help="CT 项目根目录（缺省读 CT_LEGACY_PROJECT）")
+    parser.add_argument("--registry",
+                        help="capability_registry.json 路径"
+                             "（缺省读 CT_LEGACY_REGISTRY，或 <ct-dir>/Deliverables_Package/）")
+    parser.add_argument("--output", help="输出文件路径，默认 <注册表目录>/capability_registry_updated.json")
+    args = parser.parse_args()
 
-for skill_key, skill_value in data.get("skills", {}).items():
-    if "path" in skill_value and "/Users/jeffery/odoo19-study/.claude/skills" in skill_value["path"]:
-        skill_value["path"] = str(skills_dir)
-    if "file" in skill_value and "/Users/jeffery/odoo19-study/.claude/skills" in skill_value["file"]:
-        # 提取SKILL.md文件名并构建新路径
-        skill_name = skill_key
-        skill_dir = skill_name
-        skill_value["file"] = str(skills_dir / skill_dir / "SKILL.md")
+    ct_dir = legacy_paths.ct_project_dir(args.ct_dir)
+    agents_dir = ct_dir / "agents"
+    skills_dir = ct_dir / "skills"
+    print(f"CT目录路径: {ct_dir}")
+    print(f"Skills目录路径: {skills_dir}")
+    print(f"Agents目录路径: {agents_dir}")
 
-# 为其他部分更新路径
-for key, value in data.items():
-    if isinstance(value, dict):
-        for sub_key, sub_value in value.items():
-            if isinstance(sub_value, dict):
-                if "path" in sub_value and "/Users/jeffery/odoo19-study/.claude" in sub_value["path"]:
-                    # 更新路径为相对路径或CT目录下的路径
-                    original_path = sub_value["path"]
-                    if "/Users/jeffery/odoo19-study/.claude/agents" in original_path:
-                        sub_value["path"] = str(agents_dir)
-                    elif "/Users/jeffery/odoo19-study/.claude/skills" in original_path:
-                        sub_value["path"] = str(skills_dir)
+    input_file = legacy_paths.registry_path(args.registry, ct_dir=ct_dir)
+    output_file = legacy_paths.output_path(
+        args.output, input_file.with_name("capability_registry_updated.json"))
 
-# 保存更新后的文件
-with open(output_file, 'w', encoding='utf-8') as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-print(f"已更新能力注册表文件，保存到: {output_file}")
+    for agent_key, agent_value in data.get("agents", {}).items():
+        if "path" in agent_value and MARKER + "/agents" in _as_posix(agent_value["path"]):
+            agent_value["path"] = str(agents_dir)
+        if "file" in agent_value and MARKER + "/agents" in _as_posix(agent_value["file"]):
+            agent_name = agent_key.replace("-", "_")
+            agent_dir = agent_name if "agent" in agent_name else agent_name + "_agent"
+            agent_value["file"] = str(agents_dir / agent_dir / "AGENT.md")
+
+    for skill_key, skill_value in data.get("skills", {}).items():
+        if "path" in skill_value and MARKER + "/skills" in _as_posix(skill_value["path"]):
+            skill_value["path"] = str(skills_dir)
+        if "file" in skill_value and MARKER + "/skills" in _as_posix(skill_value["file"]):
+            skill_value["file"] = str(skills_dir / skill_key / "SKILL.md")
+
+    # 兜底：其余节点里残留的 .claude 路径
+    for value in data.values():
+        if not isinstance(value, dict):
+            continue
+        for sub_value in value.values():
+            if not isinstance(sub_value, dict) or "path" not in sub_value:
+                continue
+            original = _as_posix(sub_value["path"])
+            if MARKER + "/agents" in original:
+                sub_value["path"] = str(agents_dir)
+            elif MARKER + "/skills" in original:
+                sub_value["path"] = str(skills_dir)
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"已更新能力注册表文件，保存到: {output_file}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except legacy_paths.UsageError as exc:
+        print(f"错误：{exc}", file=sys.stderr)
+        sys.exit(2)

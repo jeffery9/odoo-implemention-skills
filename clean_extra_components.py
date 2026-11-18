@@ -1,33 +1,61 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+从历史 CT 项目的注册表中移除非核心组件（obsidian 系列、json-canvas 等）。
+
+用法：
+    python3 clean_extra_components.py --registry /path/to/capability_registry.json
+    CT_LEGACY_PROJECT=/path/to/CT python3 clean_extra_components.py
+"""
+
+import argparse
+import sys
 import json
 
-# 读取capability_registry.json文件
-input_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry.json"
-output_file = "/Users/jeffery/odoo19-study/CT/Deliverables_Package/capability_registry.json"
+import legacy_paths
 
-# 读取capability_registry.json文件
-with open(input_file, 'r', encoding='utf-8') as f:
-    data = json.load(f)
-
-# 定义非核心组件
-non_core_components = {
+#: 历史交付中判定为非核心的组件（业务口径，非环境相关配置）
+NON_CORE_COMPONENTS = {
     "obsidian-markdown",
     "obsidian-bases",
     "json-canvas",
     "planning-with-files",
-    "capability-twin-orchestrator"
+    "capability-twin-orchestrator",
 }
 
-# 移除非核心组件
-removed_count = 0
-for component in non_core_components:
-    if component in data:
-        del data[component]
-        removed_count += 1
-        print(f"已移除非核心组件: {component}")
 
-# 保存更新后的文件
-with open(output_file, 'w', encoding='utf-8') as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
+def main():
+    parser = argparse.ArgumentParser(description="移除非核心组件条目")
+    parser.add_argument("--registry",
+                        help="capability_registry.json 路径"
+                             "（缺省读 CT_LEGACY_REGISTRY / CT_LEGACY_PROJECT）")
+    parser.add_argument("--output", help="输出文件路径，默认原地覆盖")
+    args = parser.parse_args()
 
-print(f"已更新能力注册表文件，移除了 {removed_count} 个非核心组件")
-print(f"已保存到: {output_file}")
+    input_file = legacy_paths.registry_path(args.registry)
+    output_file = legacy_paths.output_path(args.output, input_file)
+
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    removed = []
+    for component in sorted(NON_CORE_COMPONENTS):
+        if component in data:
+            del data[component]
+            removed.append(component)
+            print(f"已移除非核心组件: {component}")
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"已更新能力注册表文件，移除了 {len(removed)} 个非核心组件")
+    print(f"已保存到: {output_file}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except legacy_paths.UsageError as exc:
+        print(f"错误：{exc}", file=sys.stderr)
+        sys.exit(2)

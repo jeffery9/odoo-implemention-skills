@@ -25,6 +25,16 @@ Skill("intent-understanding", params={
 - **Supported Categories**: Analysis types, focus areas, and detail levels. See [categories.md](references/categories.md).
 - **Mapping Logic**: Implementation of Odoo-specific alias detection.
 
+## Dependencies & Installation
+Requires the sibling `capability-twin-orchestrator` skill (ability registry and shared modules).
+Install the suite rather than this skill alone:
+
+```bash
+npx skills add <owner>/<repo> --all
+```
+
+If the sibling is absent, import fails immediately with the exact install command — no silent degradation.
+
 ## Best Practices
 - **Prefer Explicit**: If the user provides a module name, use it.
 - **Clarification First**: If the request is too vague ("Analyze Odoo"), ask for a specific module or business goal.

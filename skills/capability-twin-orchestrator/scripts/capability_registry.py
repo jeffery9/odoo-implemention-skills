@@ -34,12 +34,13 @@ class CapabilityRegistry:
         self.create_if_missing = create_if_missing
         self.capabilities = {}
 
-        # 注册表存放仓库相对路径（形如 `agents/xxx`），需据此推导仓库根做解析。
-        # 注册表位于 <repo>/skills/capability-twin-orchestrator/，故 parents[2] 即仓库根。
+        # 注册表中的路径以「技能容器根」为基准（形如 `<skill>/agents/xxx` 或 `<skill>`），
+        # 容器在仓库布局下是 `skills/`，在安装布局下是 `.claude/skills/`，
+        # 因此这里锚定到注册表所在技能目录的父目录，而不是固定深度的仓库根。
         try:
-            self.base_dir = self.registry_path.resolve().parents[2]
+            self.base_dir = self.registry_path.resolve().parents[1]
         except (IndexError, OSError):
-            self.base_dir = Path.cwd()
+            self.base_dir = Path(__file__).resolve().parents[2]
 
         # Load existing registry or create new one
         self._load_registry()
