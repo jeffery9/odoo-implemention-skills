@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "project_id": "{{project_id}}",
+  "target_module": "{{target_module}}",
+  "odoo_versions": [],
+  "objective": "{{objective}}",
+  "scope": {
+    "in_scope": [],
+    "out_of_scope": []
+  },
+  "skill_refs": [],
+  "scenario_refs": [],
+  "baseline": {
+    "source_ref": "{{source_ref}}",
+    "captured_at": ""
+  },
+  "status": "draft",
+  "versioning_policy": "major-new-version-minor-confirm-update",
+  "updated_at": ""
+}

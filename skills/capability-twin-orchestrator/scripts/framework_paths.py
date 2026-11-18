@@ -36,6 +36,7 @@ FRAMEWORK_ROOT = SKILLS_ROOT.parent
 ORCHESTRATOR_SKILL = "capability-twin-orchestrator"
 TEMPLATE_SKILL = "template-processor"
 GHERKIN_SKILL = "gherkin-bdd"
+ODOO_IMPLEMENTATION_SKILL = "odoo-implementation"
 
 
 class SkillNotFound(RuntimeError):
@@ -117,6 +118,17 @@ def gherkin_engine() -> Path:
 def features_dir() -> Path:
     """业务场景规格根目录（`.feature` 唯一事实源）。"""
     return skill_dir(GHERKIN_SKILL) / "features"
+
+
+def odoo_implementation_dir(required: bool = False) -> Optional[Path]:
+    """
+    Odoo 实施契约技能目录。
+
+    这是**可选**扩展：默认 required=False，技能未安装时返回 None 而不抛错，
+    使既有流水线在只安装核心技能时仍原样工作。显式 required=True 时才走
+    skill_dir 的强校验与安装提示，供主动启用契约校验的调用方使用。
+    """
+    return skill_dir(ODOO_IMPLEMENTATION_SKILL, required=required)
 
 
 def agents_dir() -> Path:

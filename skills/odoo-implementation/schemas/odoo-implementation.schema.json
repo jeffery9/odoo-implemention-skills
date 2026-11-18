@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/schemas/odoo-implementation.schema.json",
+  "title": "Odoo Implementation Skill Manifest",
+  "description": "机器可读契约：在现有 SKILL.md frontmatter 上追加可选 ct_ 字段。既有字段保持原义，ct_ 字段全部可选且带前缀。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "既有字段，原义不变。"
+    },
+    "description": {
+      "type": "string",
+      "description": "既有字段，原义不变。"
+    },
+    "allowed-tools": {
+      "description": "既有字段，原义不变。可为数组或省略。"
+    },
+    "version": {
+      "type": "string",
+      "description": "既有字段，原义不变。"
+    },
+    "skills_used": {
+      "description": "既有字段，原义不变。可为数组或省略。"
+    },
+    "ct_layer": {
+      "type": "string",
+      "enum": ["router", "core", "shared", "module"],
+      "description": "分类标签，不建立物理目录。"
+    },
+    "ct_module": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Odoo 模块名；仅当 ct_layer=module 时允许。"
+    },
+    "ct_odoo_versions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+$"
+      },
+      "description": "适用 Odoo 大版本，形如 17.0 / 18.0 / 19.0。"
+    },
+    "ct_scenario_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "指向 .feature 路径或 @ct-id。"
+    },
+    "ct_state_outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "声明写入项目工作区的产物类型。"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "ct_layer": { "const": "module" } },
+        "required": ["ct_layer"]
+      },
+      "then": {
+        "required": ["ct_module"]
+      },
+      "else": {
+        "not": { "required": ["ct_module"] }
+      }
+    }
+  ]
+}
