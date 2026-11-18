@@ -11,6 +11,7 @@ execute_skill / 能力列举发现的孤岛）。
 """
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -18,10 +19,20 @@ SKILL_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = SKILL_ROOT / "scripts"
 SKILLS_ROOT = SKILL_ROOT.parent
 REGISTRY = SKILL_ROOT / "capability_registry.json"
+ODOO_IMPL_DIR = SKILLS_ROOT / "odoo-implementation"
 
 
 def _load_registry():
     return json.loads(REGISTRY.read_text(encoding="utf-8"))
+
+
+def _frontmatter_value(field: str) -> str:
+    """从 SKILL.md frontmatter 读取单值字段；不引入 YAML 依赖。"""
+    text = (ODOO_IMPL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    match = re.search(rf"^{re.escape(field)}:\s*(.+?)\s*$", text, re.MULTILINE)
+    if not match:
+        raise AssertionError(f"SKILL.md frontmatter 缺少字段 {field}")
+    return match.group(1).strip().strip("\"'")
 
 
 class RegistryIntegrationTests(unittest.TestCase):
@@ -54,9 +65,14 @@ class RegistryIntegrationTests(unittest.TestCase):
                           f"skills_used 引用了未登记的技能：{used}")
 
     def test_04_registered_entry_matches_frontmatter(self):
-        """登记元数据来自 SKILL.md frontmatter，不得与之漂移。"""
+        """登记元数据来自 SKILL.md frontmatter，不得与之漂移。
+
+        版本必须从 SKILL.md 动态读取：曾把 0.1.0 硬编码进断言，导致
+        SKILL.md 升至 0.4.0 而注册表仍停在 0.1.0 时测试依然全绿（假绿）。
+        """
         entry = self.skills["odoo-implementation"]
-        self.assertEqual(entry["version"], "0.1.0")
+        self.assertEqual(entry["version"], _frontmatter_value("version"),
+                         "注册表版本与 SKILL.md frontmatter 漂移：请重跑 discover_capabilities.py")
         self.assertEqual(entry["allowed_tools"],
                          ["Read", "Write", "Edit", "Glob", "Grep", "Bash"])
 

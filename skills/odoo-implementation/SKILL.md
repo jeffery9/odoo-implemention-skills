@@ -23,12 +23,16 @@ ct_state_outputs: [project-state, artifact-index]
 | 执行单一出口 | 初始化动作可通过 Odoo RPC 或 Odoo shell 执行，但必须收敛到 `scripts/odoo_seed_executor.py` 一个出口；禁止在能力定义或技能中散落调用 |
 | 事实源复用 | 业务场景仍以 `gherkin-bdd` 的 `.feature` 为唯一事实源，本包只引用路径 |
 | 价值边界 | 契约校验通过 = 工程一致（G2 辅助）；不等于业务验收（G3），更不等于价值实现 |
+| 维护规范 | 文件职责、变更流程、发布清单与禁止事项见 `MAINTENANCE.md`；本文件为技能入口，不替代维护规范 |
+| 能力缺口 | 尚缺能力与下一步排期见 `TODO.md`（backlog）；本文件只声明已落地能力，不预告未完成项 |
 
 ## 2. 目录契约
 
 ```text
 skills/odoo-implementation/
 ├── SKILL.md                              # 本文件（含完整 ct_ 字段示例）
+├── MAINTENANCE.md                        # 维护规范（文件职责、变更流程、发布清单、禁止事项）
+├── TODO.md                               # 能力缺口 backlog（现状快照、分级缺口、已否决项、维护规则）
 ├── schemas/odoo-implementation.schema.json  # 机器契约，additionalProperties: false
 ├── references/contract-guide.md          # 字段语义与迁移指引
 ├── references/error-taxonomy.md          # 失败分类（10 类）

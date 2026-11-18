@@ -793,7 +793,7 @@
         "file_format": "Skill file",
         "has_frontmatter": true
       },
-      "version": "0.1.0",
+      "version": "0.4.0",
       "skills_used": [
         "capability-twin-orchestrator",
         "gherkin-bdd",
