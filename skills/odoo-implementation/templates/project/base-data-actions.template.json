@@ -1,0 +1,81 @@
+{
+  "_comment": "基础数据族初始化动作计划模板。覆盖 SEED-006 计量单位 / SEED-007 币种 / SEED-008 汇率 / SEED-009 国家与地区 / SEED-010 语言与本地化。版本敏感动作以 odoo_versions 标注：Odoo 17/18 用 uom.category + uom_type/factor；Odoo 19 移除 uom.category，改用 relative_uom_id + relative_factor（见 references/version-compatibility.md）。执行器按 --odoo-version 过滤，不匹配者跳过；存在版本敏感动作时必须显式指定版本（fail-closed）。凭据只从环境变量读取，绝不写入本文件。所有写操作均带幂等键；rpc/json2/shell 三通道按版本二选一，具体数据由业务方确认后填充。",
+  "seed_id": "SEED-BASE-DATA",
+  "seed_name": "基础数据族初始化",
+  "channel": "rpc",
+  "actions": [
+    {
+      "seed_id": "SEED-006",
+      "note": "Odoo 17/18：先建单位分类，再建基准单位；uom.category + uom_type/factor",
+      "odoo_versions": ["17.0", "18.0"],
+      "method": "create",
+      "model": "uom.category",
+      "args": [{"name": "长度"}],
+      "kwargs": {},
+      "idempotency_key": "SEED-006:17-18:uom.category:长度",
+      "shell_code": "env['uom.category'].create({'name': '长度'})"
+    },
+    {
+      "seed_id": "SEED-006",
+      "note": "Odoo 17/18：基准单位 uom_type=reference、factor=1.0",
+      "odoo_versions": ["17.0", "18.0"],
+      "method": "create",
+      "model": "uom.uom",
+      "args": [{"name": "米", "category_id": 1, "uom_type": "reference", "factor": 1.0}],
+      "kwargs": {},
+      "idempotency_key": "SEED-006:17-18:uom.uom:米",
+      "shell_code": "env['uom.uom'].create({'name': '米', 'category_id': 1, 'uom_type': 'reference', 'factor': 1.0})"
+    },
+    {
+      "seed_id": "SEED-006",
+      "note": "Odoo 19：无 uom.category；relative_uom_id 指向参考单位，relative_factor=1.0",
+      "odoo_versions": ["19.0"],
+      "method": "create",
+      "model": "uom.uom",
+      "args": [{"name": "米", "relative_uom_id": 1, "relative_factor": 1.0}],
+      "kwargs": {},
+      "idempotency_key": "SEED-006:19:uom.uom:米",
+      "shell_code": "env['uom.uom'].create({'name': '米', 'relative_uom_id': 1, 'relative_factor': 1.0})"
+    },
+    {
+      "seed_id": "SEED-007",
+      "note": "币种模型 res.currency 在 17/18/19 字段名稳定；符号与小数位由财务确认",
+      "method": "write",
+      "model": "res.currency",
+      "args": [[1], {"name": "人民币", "symbol": "¥", "decimal_places": 2}],
+      "kwargs": {},
+      "idempotency_key": "SEED-007:res.currency:CNY",
+      "shell_code": "env['res.currency'].browse(1).write({'symbol': '¥', 'decimal_places': 2})"
+    },
+    {
+      "seed_id": "SEED-008",
+      "note": "汇率模型 res.currency.rate 在 17/18/19 字段名稳定；生效日期与来源须记录",
+      "method": "create",
+      "model": "res.currency.rate",
+      "args": [{"currency_id": 2, "rate": 7.1, "name": "2026-01-01"}],
+      "kwargs": {},
+      "idempotency_key": "SEED-008:res.currency.rate:USD:2026-01-01",
+      "shell_code": "env['res.currency.rate'].create({'currency_id': 2, 'rate': 7.1, 'name': '2026-01-01'})"
+    },
+    {
+      "seed_id": "SEED-009",
+      "note": "国家模型 res.country 在 17/18/19 字段名稳定；不内置全量国家数据",
+      "method": "write",
+      "model": "res.country",
+      "args": [[1], {"name": "中国", "code": "CN"}],
+      "kwargs": {},
+      "idempotency_key": "SEED-009:res.country:CN",
+      "shell_code": "env['res.country'].browse(1).write({'code': 'CN'})"
+    },
+    {
+      "seed_id": "SEED-010",
+      "note": "语言模型 res.lang 在 17/18/19 字段名稳定；激活语言须由业务方确认",
+      "method": "write",
+      "model": "res.lang",
+      "args": [[1], {"active": true, "date_format": "%Y-%m-%d"}],
+      "kwargs": {},
+      "idempotency_key": "SEED-010:res.lang:zh_CN",
+      "shell_code": "env['res.lang'].browse(1).write({'active': True})"
+    }
+  ]
+}
