@@ -1,214 +1,248 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-Test script for Context Memory Manager Skill
-Tests integration with Enhanced Intent Understanding skill
+context-memory-manager 测试。
+
+## 这个文件曾经的问题（保留说明，避免有人改回去）
+
+旧版本测的是一个**从未实现过**的 API：`ContextMemoryManager.store_context /
+retrieve_context / update_preferences / get_user_context_summary / clear_context`，
+那是技能早期的设计稿，`scripts/main.py` 改写成 OpenClaw 三层记忆后只剩
+`MemoryManager.remember / recall / snapshot_run`。旧测试的写法是
+
+    except Exception:
+        return False
+
+于是 `ImportError` 被吞掉，测试函数返回 `False`。pytest 只把非 None 返回值视作
+`PytestReturnNotNoneWarning`，**不计为失败**——这个文件因此长期「绿着」，实际上
+一行断言都没执行过。现在的原则：断言失败就是失败，异常就向上抛。
+
+## 隔离措施
+
+各技能的实现都叫 `scripts/main.py`，测试若写 `from main import ...` 会命中
+`sys.modules["main"]` 缓存，拿到别家技能的模块。本文件按**文件路径**加载实现，
+挂在唯一模块名 `ctm_main` 下，与收集顺序无关。
 """
 
+import importlib.util
+import io
+import json
+import os
 import sys
+import tempfile
+import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
-# Add project paths
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / ".claude" / "skills"))
+SCRIPTS = Path(__file__).resolve().parent / "scripts"
 
-def test_context_memory_manager():
-    """Test the context memory manager skill"""
-    try:
-        # Import the context memory manager
-        sys.path.insert(0, str(Path(__file__).parent))
-        from main import ContextMemoryManager
 
-        # Initialize the skill
-        skill = ContextMemoryManager()
+def _load_impl():
+    """按路径加载本技能实现，避免与其它技能的 scripts/main.py 撞名。"""
+    spec = importlib.util.spec_from_file_location("ctm_main", SCRIPTS / "main.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-        # Test cases
-        test_cases = [
-            {
-                "user_id": "test_user_001",
-                "session_id": "session_001",
-                "context_type": "intent_analysis",
-                "data": {
-                    "previous_intent": "analyze_request",
-                    "previous_context": "analyzing_odoo_modules",
-                    "confidence": 0.85
-                }
-            },
-            {
-                "user_id": "test_user_002",
-                "session_id": "session_002",
-                "context_type": "knowledge_acquisition",
-                "data": {
-                    "previous_intent": "explanation_request",
-                    "previous_context": "understanding_features",
-                    "emotion": "positive"
-                },
-                "preferences": {
-                    "theme": "dark",
-                    "language": "en",
-                    "analysis_depth": "comprehensive"
-                }
-            }
-        ]
 
-        print("Testing Context Memory Manager Skill")
-        print("=" * 50)
+class MemoryManagerTest(unittest.TestCase):
+    """MemoryManager 的三层记忆契约：语义事实 / 使用模式 / 运行快照"""
 
-        # Test storing context
-        all_stores_passed = True
-        for i, test_case in enumerate(test_cases, 1):
-            print(f"\nStore Test {i}: {test_case['user_id']}")
+    @classmethod
+    def setUpClass(cls):
+        cls.impl = _load_impl()
 
-            store_result = skill.store_context(test_case)
-            print(f"  Store result: {'✓ SUCCESS' if store_result else '✗ FAILED'}")
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory(prefix="ctm_")
+        self.kb = Path(self._tmp.name) / "kb" / "mem"
+        self.manager = self.impl.MemoryManager(self.kb)
 
-            if not store_result:
-                all_stores_passed = False
+    def tearDown(self):
+        self._tmp.cleanup()
 
-        # Test retrieving context
-        print("\nRetrieving context data...")
-        for i, test_case in enumerate(test_cases, 1):
-            print(f"\nRetrieve Test {i}: {test_case['user_id']}")
+    # --- 存储初始化 ---------------------------------------------------
 
-            # Retrieve session context
-            session_context = skill.retrieve_context('session_context')
-            print(f"  Session context: {'✓ SUCCESS' if session_context else '✗ FAILED'}")
+    def test_init_creates_storage_files(self):
+        """首次使用时自动建立 JSONL 文件，调用方不必预建目录"""
+        self.assertTrue(self.kb.is_dir())
+        self.assertTrue((self.kb / "long_term_facts.jsonl").is_file())
+        self.assertTrue((self.kb / "usage_patterns.jsonl").is_file())
 
-            # Retrieve user preferences
-            user_prefs = skill.retrieve_context('user_preferences', test_case['user_id'])
-            print(f"  User preferences: {'✓ SUCCESS' if user_prefs else '✗ FAILED'}")
+    # --- remember -----------------------------------------------------
 
-        # Test updating preferences
-        print("\nUpdating user preferences...")
-        preferences_updates = {
-            "test_user_001": {"module_focus": "sale", "analysis_depth": "comprehensive"},
-            "test_user_002": {"theme": "light", "language": "zh"}
-        }
+    def test_remember_fact_appends_one_jsonl_line(self):
+        """一次 remember 只追加一行 JSONL，而非重写整个文件"""
+        self.manager.remember("fact", "mrp_consumption", "以 _action_confirm 触发库存检查",
+                              {"module": "mrp", "version": "19.0"})
+        self.manager.remember("fact", "account_lock", "过账后不可改金额")
 
-        all_updates_passed = True
-        for user_id, prefs in preferences_updates.items():
-            update_result = skill.update_preferences(user_id, prefs)
-            print(f"  Update {user_id}: {'✓ SUCCESS' if update_result else '✗ FAILED'}")
+        lines = (self.kb / "long_term_facts.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 2)
+        first = json.loads(lines[0])
+        self.assertEqual(first["key"], "mrp_consumption")
+        self.assertEqual(first["metadata"], {"module": "mrp", "version": "19.0"})
+        self.assertTrue(first["timestamp"])
 
-            if not update_result:
-                all_updates_passed = False
+    def test_remember_pattern_goes_to_separate_file(self):
+        """fact 与 pattern 分文件存放，互不污染"""
+        self.manager.remember("pattern", "wizard_default_get", "先 super 再取默认值")
 
-        # Test getting user context summary
-        print("\nGetting user context summaries...")
-        all_summaries_passed = True
-        for i, test_case in enumerate(test_cases, 1):
-            print(f"\nSummary Test {i}: {test_case['user_id']}")
+        facts = (self.kb / "long_term_facts.jsonl").read_text(encoding="utf-8")
+        patterns = (self.kb / "usage_patterns.jsonl").read_text(encoding="utf-8")
+        self.assertEqual(facts.strip(), "")
+        self.assertIn("wizard_default_get", patterns)
 
-            summary = skill.get_user_context_summary(test_case['user_id'])
-            print(f"  Summary: {'✓ SUCCESS' if summary else '✗ FAILED'}")
-            print(f"    - User ID: {summary.get('user_id', 'N/A')}")
-            print(f"    - Preferences: {summary.get('preferences', {})}")
-            print(f"    - Interaction count: {summary.get('interaction_count', 0)}")
+    def test_remember_rejects_unknown_category(self):
+        """拼错 category 必须报错：否则会静默落到 usage_patterns 里查不到"""
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.remember("facts", "k", "v")
+        self.assertIn("facts", str(ctx.exception))
 
-            if not summary:
-                all_summaries_passed = False
+    def test_remember_rejects_empty_key(self):
+        with self.assertRaises(ValueError):
+            self.manager.remember("fact", "", "v")
 
-        # Test clearing context
-        print("\nClearing context...")
-        clear_result = skill.clear_context(user_id='test_user_001')
-        print(f"  Clear test_user_001: {'✓ SUCCESS' if clear_result else '✗ FAILED'}")
+    # --- recall -------------------------------------------------------
 
-        return all_stores_passed and all_updates_passed and all_summaries_passed and clear_result
+    def test_recall_empty_store_returns_empty_dict(self):
+        self.assertEqual(self.manager.recall("fact"), {})
 
-    except Exception as e:
-        print(f"Error during testing: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    def test_recall_latest_entry_wins(self):
+        """同一 key 多次写入按「后写覆盖」读取，且不删除历史行"""
+        self.manager.remember("fact", "res_currency_rounding", "旧值")
+        self.manager.remember("fact", "res_currency_rounding", "新值")
 
-def test_integration_with_enhanced_intent():
-    """Test integration with Enhanced Intent Understanding skill"""
-    try:
-        # Import both skills
-        sys.path.insert(0, str(Path(__file__).parent))
-        from main import ContextMemoryManager
+        result = self.manager.recall("fact")
+        self.assertEqual(result["res_currency_rounding"]["value"], "新值")
+        # 历史行仍在（append-only，便于审计），只是读取时取最新
+        lines = (self.kb / "long_term_facts.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 2)
 
-        # Initialize the skills
-        context_manager = ContextMemoryManager()
+    def test_recall_query_filters_by_key_case_insensitively(self):
+        self.manager.remember("fact", "MRP_consumption", "a")
+        self.manager.remember("fact", "account_lock", "b")
 
-        # Test context storage and retrieval
-        print("\nTesting Integration with Enhanced Intent Understanding...")
-        print("=" * 60)
+        self.assertEqual(list(self.manager.recall("fact", "mrp")), ["MRP_consumption"])
+        self.assertEqual(list(self.manager.recall("fact", "ACCOUNT")), ["account_lock"])
+        self.assertEqual(self.manager.recall("fact", "stock"), {})
 
-        # Test storing intent analysis context
-        intent_context = {
-            'user_id': 'intent_test_user',
-            'session_id': 'intent_session_001',
-            'interaction_id': 'intent_interaction_001',
-            'context_type': 'intent_analysis',
-            'data': {
-                'intent': 'analyze_request',
-                'confidence': 0.75,
-                'emotion': 'neutral',
-                'original_intent': 'analyze_request'
-            },
-            'preferences': {
-                'theme': 'dark',
-                'analysis_type': 'detailed'
-            }
-        }
+    def test_recall_reports_corrupted_line_with_location(self):
+        """坏行要指出文件与行号；静默返回空字典等于丢数据"""
+        path = self.kb / "long_term_facts.jsonl"
+        path.write_text('{"key": "ok", "value": 1}\n不是 JSON\n', encoding="utf-8")
 
-        print("Storing intent analysis context...")
-        store_result = context_manager.store_context(intent_context)
-        print(f"  Store result: {'✓ SUCCESS' if store_result else '✗ FAILED'}")
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.recall("fact")
+        self.assertIn("long_term_facts.jsonl:2", str(ctx.exception))
 
-        # Verify context was stored
-        if store_result:
-            print("Verifying stored context...")
-            session_context = context_manager.retrieve_context('session_context')
-            user_prefs = context_manager.retrieve_context('user_preferences', 'intent_test_user')
-            print(f"  Session context: {'✓ SUCCESS' if session_context else '✗ FAILED'}")
-            print(f"  User preferences: {'✓ SUCCESS' if user_prefs else '✗ FAILED'}")
+    def test_recall_tolerates_missing_optional_fields(self):
+        """手工写入的非标准记录（缺 metadata/timestamp）不应让整个查询崩掉"""
+        path = self.kb / "long_term_facts.jsonl"
+        path.write_text('{"key": "legacy"}\n', encoding="utf-8")
 
-        # Test updating intent preferences
-        print("Updating intent preferences...")
-        updated_prefs = {'theme': 'light', 'analysis_type': 'comprehensive', 'module_focus': 'sale'}
-        update_result = context_manager.update_preferences('intent_test_user', updated_prefs)
-        print(f"  Update result: {'✓ SUCCESS' if update_result else '✗ FAILED'}")
+        result = self.manager.recall("fact")["legacy"]
+        self.assertIsNone(result["value"])
+        self.assertEqual(result["metadata"], {})
 
-        # Test getting intent context summary
-        print("Getting intent context summary...")
-        summary = context_manager.get_user_context_summary('intent_test_user')
-        print(f"  Summary: {'✓ SUCCESS' if summary else '✗ FAILED'}")
-        print(f"    - User ID: {summary.get('user_id', 'N/A')}")
-        print(f"    - Preferences: {summary.get('preferences', {})}")
+    # --- snapshot -----------------------------------------------------
 
-        return store_result and update_result and summary
+    def test_snapshot_run_writes_jsonl_under_kb(self):
+        path = self.manager.snapshot_run("run-001", {"step": 11, "module": "mrp"})
 
-    except Exception as e:
-        print(f"Error during integration testing: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        self.assertEqual(path, self.kb / "snapshots" / "run-001.jsonl")
+        payload = json.loads(path.read_text(encoding="utf-8").strip())
+        self.assertEqual(payload, {"step": 11, "module": "mrp"})
 
-def main():
-    """Main test function"""
-    print("Context Memory Manager Skill Integration Tests")
-    print("=" * 60)
+    def test_snapshot_rejects_empty_run_id(self):
+        with self.assertRaises(ValueError):
+            self.manager.snapshot_run("", {"step": 1})
 
-    # Test context memory manager functionality
-    manager_test_result = test_context_memory_manager()
 
-    # Test integration with enhanced intent understanding
-    integration_test_result = test_integration_with_enhanced_intent()
+class CliContractTest(unittest.TestCase):
+    """技能通过 Skill(...) 以命令行 JSON 参数调用，stdout 必须是可解析的 JSON"""
 
-    print("\n" + "=" * 60)
-    print("FINAL TEST RESULTS")
-    print("=" * 60)
-    print(f"Context Manager Tests: {'✓ PASSED' if manager_test_result else '✗ FAILED'}")
-    print(f"Integration Tests: {'✓ PASSED' if integration_test_result else '✗ FAILED'}")
+    @classmethod
+    def setUpClass(cls):
+        cls.impl = _load_impl()
 
-    overall_result = manager_test_result and integration_test_result
-    print(f"Overall Result: {'✓ ALL TESTS PASSED' if overall_result else '✗ SOME TESTS FAILED'}")
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory(prefix="ctm_cli_")
+        self.workspace = Path(self._tmp.name) / "workspace"
+        self.workspace.mkdir()
+        self._cwd = Path.cwd()
+        self._argv = sys.argv
 
-    return overall_result
+    def tearDown(self):
+        sys.argv = self._argv
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def _run(self, payload, workspace=None):
+        """以 CLI 方式调用 main()，返回 stdout 的 JSON 与退出码（本实现恒为 0）。"""
+        sys.argv = ["main.py", json.dumps(payload)]
+        env = {"CAPABILITY_TWIN_WORKSPACE": str(workspace or self.workspace)}
+        original = os.environ.get("CAPABILITY_TWIN_WORKSPACE")
+        os.environ["CAPABILITY_TWIN_WORKSPACE"] = env["CAPABILITY_TWIN_WORKSPACE"]
+        buf = io.StringIO()
+        try:
+            with redirect_stdout(buf):
+                code = self.impl.main()
+        finally:
+            if original is None:
+                os.environ.pop("CAPABILITY_TWIN_WORKSPACE", None)
+            else:
+                os.environ["CAPABILITY_TWIN_WORKSPACE"] = original
+        text = buf.getvalue().strip()
+        return (json.loads(text) if text else None), code
+
+    def test_remember_then_recall_roundtrip(self):
+        out, _ = self._run({"operation": "remember", "category": "fact",
+                            "key": "mrp_posting", "value": "过账时校验库存",
+                            "metadata": {"module": "mrp"}})
+        self.assertEqual(out, {"status": "success", "operation": "remember"})
+
+        out, _ = self._run({"operation": "recall", "category": "fact", "query": "mrp"})
+        self.assertEqual(out["status"], "success")
+        self.assertEqual(out["data"]["mrp_posting"]["value"], "过账时校验库存")
+
+    def test_cli_writes_into_workspace_not_cwd(self):
+        """产物必须落在工作区：技能装在哪、进程 CWD 在哪都不影响"""
+        elsewhere = Path(self._tmp.name) / "elsewhere"
+        elsewhere.mkdir()
+        os.chdir(elsewhere)
+
+        self._run({"operation": "remember", "key": "k", "value": "v"})
+
+        self.assertTrue((self.workspace / "kb" / "mem" / "long_term_facts.jsonl").is_file())
+        self.assertFalse((elsewhere / "kb").exists())
+
+    def test_cli_snapshot_operation(self):
+        out, _ = self._run({"operation": "snapshot", "run_id": "run-xyz",
+                            "context": {"step": 13}})
+        self.assertEqual(out["status"], "success")
+        snap = self.workspace / "kb" / "mem" / "snapshots" / "run-xyz.jsonl"
+        self.assertTrue(snap.is_file())
+
+    def test_cli_unknown_operation_reports_error(self):
+        out, _ = self._run({"operation": "remeber", "key": "k"})
+        self.assertEqual(out["status"], "error")
+        self.assertIn("remeber", out["message"])
+
+    def test_cli_invalid_json_arguments_reports_error(self):
+        sys.argv = ["main.py", "{not json"]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.impl.main()
+        self.assertEqual(json.loads(buf.getvalue().strip())["status"], "error")
+
+    def test_cli_without_arguments_is_silent(self):
+        sys.argv = ["main.py"]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.impl.main()
+        self.assertEqual(buf.getvalue(), "")
+
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    unittest.main(verbosity=2)

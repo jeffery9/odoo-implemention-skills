@@ -33,6 +33,21 @@ REQUIRED_SKILLS = ("capability-twin-orchestrator", "gherkin-bdd", "template-proc
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache")
 
+# 与源码树同名的模块。技能的实现都叫 main.py / config.py / framework_paths.py，
+# Python 的模块缓存按裸名索引，别的测试先导入过就会命中缓存，于是这里的
+# `import framework_paths` 拿到的是源码树那份；它的 SKILLS_ROOT 由自身位置推导，
+# 布局判定立刻变回 "repository"，本测试静默测了个假的安装态。
+# 因此导入安装态副本之前必须把这些名字腾空，跑完再腾空一次，避免副本外溢。
+_COLLIDING_MODULES = (
+    "main", "framework_paths", "config", "bdd_gate",
+    "capability_registry", "file_operations", "errors", "odoo_module_graph",
+)
+
+
+def _forget_colliding_modules():
+    for name in _COLLIDING_MODULES:
+        sys.modules.pop(name, None)
+
 
 def _snapshot(root: Path) -> set:
     """技能目录的文件相对路径清单，用于检测运行时是否被写入。"""
@@ -57,6 +72,7 @@ class InstallLayoutTest(unittest.TestCase):
         cls.before = _snapshot(cls.skills)
 
         # 按文件路径加载安装态副本，确保用的是副本里的代码而不是源码树
+        _forget_colliding_modules()
         sys.path.insert(0, str(cls.skills / "capability-twin-orchestrator" / "scripts"))
         import framework_paths                                    # noqa: E402
         import main as ct_main                                    # noqa: E402
@@ -69,6 +85,9 @@ class InstallLayoutTest(unittest.TestCase):
     def tearDownClass(cls):
         os.chdir(cls._cwd)
         shutil.rmtree(cls.tmp, ignore_errors=True)
+        # 副本与本类的 sys.path 条目一起撤掉，别把安装态模块留给后续测试
+        sys.path.remove(str(cls.skills / "capability-twin-orchestrator" / "scripts"))
+        _forget_colliding_modules()
 
     def setUp(self):
         # 产物与相对路径都以工作区为基准，模拟用户项目目录
