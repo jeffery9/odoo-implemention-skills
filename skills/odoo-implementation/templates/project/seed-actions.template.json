@@ -1,0 +1,25 @@
+{
+  "_comment": "种子能力动作计划模板。由项目侧按 SEED 能力填充，交由 scripts/odoo_seed_executor.py 单一出口执行。凭据只从环境变量读取，绝不写入本文件。写操作必须提供 idempotency_key。",
+  "seed_id": "SEED-001",
+  "seed_name": "主数据初始化",
+  "channel": "rpc",
+  "actions": [
+    {
+      "seed_id": "SEED-001",
+      "method": "search_count",
+      "model": "res.partner",
+      "args": [{"customer_rank": 1}],
+      "kwargs": {},
+      "shell_code": "env['res.partner'].search_count([('customer_rank','>',0)])"
+    },
+    {
+      "seed_id": "SEED-001",
+      "method": "create",
+      "model": "res.partner",
+      "args": [{"name": "示例客户", "customer_rank": 1}],
+      "kwargs": {},
+      "idempotency_key": "SEED-001:partner:示例客户",
+      "shell_code": "env['res.partner'].create({'name':'示例客户','customer_rank':1})"
+    }
+  ]
+}
