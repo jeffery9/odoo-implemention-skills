@@ -4,6 +4,12 @@
 import json, os, sys
 from pathlib import Path
 
+# 框架路径中枢随 orchestrator 分发：本文件位于 <orchestrator>/agents/<agent>/main.py
+_scripts = Path(__file__).resolve().parents[2] / "scripts"
+if str(_scripts) not in sys.path:
+    sys.path.insert(0, str(_scripts))
+import framework_paths
+
 def main():
     if len(sys.argv) < 2: return
     try:
@@ -16,7 +22,8 @@ def main():
             return
         
         source_root = Path(source_root_str)
-        project_root = Path(__file__).resolve().parents[2]
+        # 分片是运行时产物，写用户工作区；不能写进技能包（安装态为只读副本）
+        project_root = framework_paths.workspace_root()
         # 按模块分目录，避免与其它模块的分片互相覆盖/误删
         shard_dir = project_root / "kb/shards" / target_module
         shard_dir.mkdir(parents=True, exist_ok=True)

@@ -20,9 +20,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = ROOT / "skills" / "capability-twin-orchestrator" / "scripts"
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+SKILLS_ROOT = SKILL_ROOT.parent
+SCRIPTS = SKILL_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-sys.path.insert(0, str(ROOT / "scripts"))
 
 import main as ct_main                      # noqa: E402
 from config import CapabilityTwinConfig     # noqa: E402
@@ -58,7 +59,7 @@ def _write_feature(root: Path, module: str, name: str, text: str) -> Path:
 
 
 def _load_quality_gate():
-    path = ROOT / "skills" / "quality-gate" / "main.py"
+    path = SKILLS_ROOT / "quality-gate" / "main.py"
     spec = importlib.util.spec_from_file_location("ct_quality_gate", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("ct_quality_gate", module)
@@ -240,7 +241,7 @@ class QualityGateIntegrationTests(unittest.TestCase):
         gate = qg.QualityGate()
 
         ok = gate.execute({"check_type": "scenario_spec",
-                           "target_path": str(ROOT / "skills/gherkin-bdd/features")})
+                           "target_path": str(SKILLS_ROOT / "gherkin-bdd" / "features")})
         self.assertEqual(ok["results"]["check_result"], "pass")
         self.assertEqual(ok["results"]["scenario_metrics"]["errors"], 0)
 

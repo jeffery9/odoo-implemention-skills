@@ -11,13 +11,13 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-# Add project paths
+# Add project paths（技能容器根：仓库布局为 skills/，安装布局为 .claude/skills/）
 skill_dir = Path(__file__).parent.resolve()
-repo_root = skill_dir.parents[1]          # <repo>
-scripts_dir = repo_root / "scripts"       # 公共模块（capability_registry）所在目录
+skills_root = skill_dir.parent
+orchestrator_scripts = skills_root / "capability-twin-orchestrator" / "scripts"
 
-sys.path.append(str(repo_root))
-sys.path.append(str(scripts_dir))
+sys.path.append(str(skills_root))
+sys.path.append(str(orchestrator_scripts))
 sys.path.append(str(skill_dir))
 
 from main import IntentUnderstandingSkill

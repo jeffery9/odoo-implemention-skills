@@ -100,7 +100,18 @@ def main():
         "{PITFALLS}": comp_res.get("pitfalls", "Common configuration errors.")
     }
 
-    template_path = root / "templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md"
+    # 模板随 template-processor 技能分发（仓库布局与安装布局通用）
+    candidates = [
+        root / "skills/template-processor/templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",
+        root / ".claude/skills/template-processor/templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",
+        root / "templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",   # 历史布局
+    ]
+    template_path = next((p for p in candidates if p.is_file()), None)
+    if template_path is None:
+        raise SystemExit(
+            "未找到 STRATEGIC_FUNCTIONAL_SPEC_V6.md；"
+            "请确认 template-processor 技能已就位（skills/template-processor/templates/deliverables）。"
+        )
     template = template_path.read_text(encoding='utf-8')
     for k, v in mapping.items():
         template = template.replace(k, str(v))

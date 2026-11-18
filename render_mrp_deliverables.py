@@ -11,10 +11,9 @@ import os
 import json
 from pathlib import Path
 
-# Add framework paths
-project_root = Path("/Users/jeffery/odoo19-study")
-sys.path.append(str(project_root / "CAPABILITY_TWIN/scripts"))
-sys.path.append(str(project_root / "CAPABILITY_TWIN/skills/capability-twin-orchestrator/scripts"))
+# Add framework paths（按本文件定位，避免硬编码某台机器的绝对路径）
+_repo_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(_repo_root / "skills" / "capability-twin-orchestrator" / "scripts"))
 
 try:
     from main import execute_skill

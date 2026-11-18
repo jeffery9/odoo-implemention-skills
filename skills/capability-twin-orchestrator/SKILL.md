@@ -54,8 +54,26 @@ Never use it to claim G2/G3 completion.
 - **Knowledge Persistence**: Results are stored in the `kb/` directory for future reuse.
 - **FDE Discipline**: At mounted checkpoints record pass / fail / n/a + evidence; never equate "delivered" with "value realized", and never add a weighted score or maturity grade (`fde-methodology`).
 
+## Dependencies & Installation
+
+This skill is not standalone. Install the whole suite so sibling skills resolve:
+
+```bash
+npx skills add <owner>/<repo> --all      # recommended
+npx skills add <owner>/<repo> --skill capability-twin-orchestrator  # will fail loudly without the rest
+```
+
+Required siblings: `gherkin-bdd` (spec gate engine + `.feature`), `template-processor`
+(16 deliverable templates), `quality-gate` (gate checks). Missing dependencies raise
+`SkillNotFound` with the exact install command — there is no silent fallback.
+
+Path resolution is centralised in [framework_paths.py](scripts/framework_paths.py) and works in
+both layouts: repository (`<repo>/skills/<skill>/`) and installed (`<project>/.claude/skills/<skill>/`).
+Runtime artifacts always go to the workspace (`CAPABILITY_TWIN_WORKSPACE` or CWD), never into the skill tree.
+
 ## Resources
-- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter)
+- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter), [framework_paths.py](scripts/framework_paths.py) (path resolution)
+- **Agents**: [agents/](agents/) (18 prompt agents, shipped inside this skill)
 - **Registry**: [capability_registry.json](capability_registry.json)
 - **Methodology**: [fde-methodology/SKILL.md](../fde-methodology/SKILL.md) (9-item review checklist, output contract, anti-patterns)
 - **Scenario spec**: [gherkin-bdd/SKILL.md](../gherkin-bdd/SKILL.md) (single source of truth, validation codes, step stubs)

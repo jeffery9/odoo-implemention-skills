@@ -4,6 +4,12 @@
 import json, os, sys
 from pathlib import Path
 
+# 框架路径中枢随 orchestrator 分发：本文件位于 <orchestrator>/agents/<agent>/main.py
+_scripts = Path(__file__).resolve().parents[2] / "scripts"
+if str(_scripts) not in sys.path:
+    sys.path.insert(0, str(_scripts))
+import framework_paths
+
 def main():
     if len(sys.argv) < 2: return
     try:
@@ -16,8 +22,8 @@ def main():
             print(json.dumps({"status": "error", "message": "No content provided by LLM brain."}))
             return
 
-        # 纯 I/O 职责：物理落地
-        project_root = Path(__file__).resolve().parents[2]
+        # 纯 I/O 职责：物理落地到用户工作区，而非技能包所在目录
+        project_root = framework_paths.workspace_root()
         output_path = project_root / f"docs/functional/{target}_v19_functional.md"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         

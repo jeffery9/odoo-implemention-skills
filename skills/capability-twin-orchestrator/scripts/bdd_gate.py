@@ -25,11 +25,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# scripts -> capability-twin-orchestrator -> skills -> 仓库根
-FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_FEATURES_DIR = FRAMEWORK_ROOT / "skills" / "gherkin-bdd" / "features"
-DEFAULT_OUTPUT_DIR = FRAMEWORK_ROOT / "capability_twin_runs" / "bdd"
-ENGINE_PATH = FRAMEWORK_ROOT / "skills" / "gherkin-bdd" / "scripts" / "gherkin_gate.py"
+import framework_paths
+
+# 结构不变量 `<容器>/<技能>/scripts/`：仓库布局下容器是 skills/，
+# 安装布局（npx skills add --all）下是 .claude/skills/，由 framework_paths 统一推导。
+FRAMEWORK_ROOT = framework_paths.FRAMEWORK_ROOT
+DEFAULT_FEATURES_DIR = framework_paths.SKILLS_ROOT / framework_paths.GHERKIN_SKILL / "features"
+ENGINE_PATH = framework_paths.SKILLS_ROOT / framework_paths.GHERKIN_SKILL / "scripts" / "gherkin_gate.py"
+# 产物目录刻意**不做**模块级常量：它依赖 CWD，导入时求值会把当时的目录永久冻结，
+# 导致调用方 chdir 到用户项目后产物仍写回导入位置。见 BDDGate.__init__。
 
 # 场景类交付物：没有可用规格时不允许打包，否则模板只能填占位符
 SCENARIO_DEPENDENT_TEMPLATES = ("SCENARIO_SOLUTION", "CONSULTANT_UAT_SCRIPT")
@@ -58,7 +62,8 @@ class BDDGate:
                  allow_en: bool = False,
                  enabled: bool = True):
         self.features_dir = Path(features_dir) if features_dir else DEFAULT_FEATURES_DIR
-        self.output_dir = Path(output_dir) if output_dir else DEFAULT_OUTPUT_DIR
+        self.output_dir = Path(output_dir) if output_dir \
+            else framework_paths.default_run_dir() / "bdd"
         self.allow_en = allow_en
         self.enabled = enabled
         self._engine_module = None
@@ -73,6 +78,8 @@ class BDDGate:
         if self._engine_module is not None:
             return self._engine_module
         if not ENGINE_PATH.is_file():
+            # 交给 framework_paths 给出带修复提示的异常，而不是裸 FileNotFoundError
+            framework_paths.gherkin_engine()
             raise FileNotFoundError(f"未找到规格门禁引擎：{_rel(ENGINE_PATH)}")
         spec = importlib.util.spec_from_file_location("ct_gherkin_gate", ENGINE_PATH)
         module = importlib.util.module_from_spec(spec)

@@ -16,14 +16,21 @@ import re
 from pathlib import Path
 import uuid
 
-# Add project paths（按本文件定位仓库根，不依赖 CWD，也不依赖历史 .claude/scripts）
-repo_root = Path(__file__).resolve().parents[2]
-sys.path.append(str(repo_root))
-sys.path.append(str(repo_root / "scripts"))
+# 技能容器根：仓库布局下是 skills/，npx skills 安装后是 .claude/skills/。
+# 只按本文件深度推导，不依赖 CWD，也不依赖仓库根。
+_skills_root = Path(__file__).resolve().parents[1]
+_orchestrator = _skills_root / "capability-twin-orchestrator"
+if not _orchestrator.is_dir():
+    raise ImportError(
+        f"本技能依赖 `capability-twin-orchestrator`，但在 `{_skills_root}` 下未找到。"
+        "请整套安装：npx skills add <owner>/<repo> --all；"
+        "或补装：npx skills add <owner>/<repo> --skill capability-twin-orchestrator"
+    )
+sys.path.insert(0, str(_orchestrator / "scripts"))
 
 from capability_registry import CapabilityRegistry
 
-_REGISTRY_PATH = repo_root / "skills" / "capability-twin-orchestrator" / "capability_registry.json"
+_REGISTRY_PATH = _orchestrator / "capability_registry.json"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

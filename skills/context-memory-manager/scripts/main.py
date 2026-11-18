@@ -79,9 +79,11 @@ def main():
 
     try:
         params = json.loads(sys.argv[1])
-        # Project root is 5 levels up from scripts/
-        # /Users/jeffery/odoo19-study/CAPABILITY_TWIN/skills/context-memory-manager/scripts/main.py
-        project_root = Path(__file__).parent.parent.parent.parent.parent
+        # 运行时数据属于用户工作区，与技能装在哪里无关。
+        # 优先级：CAPABILITY_TWIN_WORKSPACE > 当前工作目录。
+        # 不再用固定深度向上推导：npx skills 安装后深度会变，推导会落到错误目录。
+        env_ws = os.environ.get("CAPABILITY_TWIN_WORKSPACE")
+        project_root = Path(env_ws).expanduser().resolve() if env_ws else Path.cwd()
         manager = MemoryManager(project_root / "kb" / "mem")
         
         operation = params.get("operation")

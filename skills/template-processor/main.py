@@ -33,9 +33,11 @@ class TemplateProcessor:
         self.supported_engines = [
             "jinja2", "mustache", "handlebars", "simple"
         ]
-        # Project-specific deliverable templates（按本文件定位仓库根，不依赖 CWD）
-        self.project_root = Path(__file__).resolve().parents[2]
-        self.deliverables_dir = self.project_root / "templates" / "deliverables"
+        # 交付模板随本技能一起分发：<container>/template-processor/templates/deliverables
+        # 只按本文件定位，不依赖 CWD，也不依赖仓库根 —— 因此 npx skills 安装后依然可达。
+        self.skill_root = Path(__file__).resolve().parent
+        self.project_root = self.skill_root.parent
+        self.deliverables_dir = self.skill_root / "templates" / "deliverables"
         
         self.template_cache = {}
         self.cache_dir = Path.home() / ".template_processor_cache"

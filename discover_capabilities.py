@@ -20,9 +20,12 @@ from pathlib import Path
 from datetime import datetime
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parent
-AGENTS_DIR = FRAMEWORK_ROOT / "agents"
 SKILLS_DIR = FRAMEWORK_ROOT / "skills"
-REGISTRY_PATH = SKILLS_DIR / "capability-twin-orchestrator" / "capability_registry.json"
+ORCHESTRATOR_DIR = SKILLS_DIR / "capability-twin-orchestrator"
+# 提示型代理随 orchestrator 技能一起分发，npx skills 才认得并安装；
+# 放在仓库根时不会被任何技能包收录，安装后必然缺失。
+AGENTS_DIR = ORCHESTRATOR_DIR / "agents"
+REGISTRY_PATH = ORCHESTRATOR_DIR / "capability_registry.json"
 
 
 def _parse_list(raw: str):
@@ -61,8 +64,14 @@ def _frontmatter(md_path: Path) -> dict:
 
 
 def _rel(path: Path) -> str:
-    """返回相对仓库根的 POSIX 路径，保证跨平台与可移植"""
-    return path.relative_to(FRAMEWORK_ROOT).as_posix()
+    """
+    返回相对**技能容器根**的 POSIX 路径。
+
+    容器根在仓库布局下是 `skills/`，安装布局下是 `.claude/skills/`；
+    注册表消费者（capability_registry）以同一基准解析，因此两种布局通用。
+    例：`capability-twin-orchestrator/agents/xxx`、`quality-gate`。
+    """
+    return path.relative_to(SKILLS_DIR).as_posix()
 
 
 def _load_previous() -> dict:
