@@ -11,6 +11,7 @@
 | 文件 | 职责 | 允许的变化 | 变更时必须同步 |
 |---|---|---|---|
 | `SKILL.md` | 技能入口、frontmatter 契约、能力目录（SEED-001~010）、CLI | 版本、能力卡、CLI 说明 | 版本号 → 注册表；能力卡 → 索引表；CLI → 执行器实际参数 |
+| `TODO.md` | 能力缺口 backlog：现状快照、分级缺口、已否决项、维护规则 | 增删 GAP 条目、状态流转、归档 | 缺口落地涉及文件/版本变更时 → 本表与 `SKILL.md` §2；不与规划文档各写各的 |
 | `schemas/odoo-implementation.schema.json` | 机器契约，`additionalProperties: false` | `ct_` 字段、枚举、领域规则 | `references/contract-guide.md`、`scripts/validate_odoo_manifest.py`、`tests/test_validate_odoo_manifest.py` |
 | `scripts/validate_odoo_manifest.py` | 零依赖契约校验（validate / list） | 校验逻辑 | schema 同名字段规则、正负例测试 |
 | `scripts/odoo_seed_executor.py` | 种子动作**单一执行出口**，版本感知 | 通道、版本矩阵、过滤逻辑 | `references/version-compatibility.md`、SKILL.md CLI、执行器测试、模板 |
