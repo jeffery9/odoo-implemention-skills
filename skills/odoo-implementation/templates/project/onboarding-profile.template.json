@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Odoo 项目 onboarding profile 模板：声明目标版本、通道与启用的种子能力阶段。",
+    "由 odoo_onboarding.py 读取，按 SKILL.md §6.3 依赖顺序排序后逐阶段委派 odoo_seed_executor.run()。",
+    "用法：复制本文件到项目目录，按实际删减 phases、填充计划，然后：",
+    "  python3 odoo_onboarding.py check --profile <本文件>   # 静态接入检查，不连 Odoo",
+    "  python3 odoo_onboarding.py run   --profile <本文件>   # 默认 dry-run",
+    "  python3 odoo_onboarding.py run   --profile <本文件> --apply  # 真实写入",
+    "凭据绝不写入本文件：只从 ODOO_URL/ODOO_DB/ODOO_USER/ODOO_PASSWORD 或 ODOO_API_KEY 环境变量读取；",
+    "profile 中出现 credential/password/api_key/token/secret 类字段会被直接拒绝（退出码 2）。",
+    "plan 路径相对本文件所在目录解析。已有模板可直接引用；标注「项目侧待建」的路径需先建好动作计划。",
+    "odoo_onboarding 只编排；单阶段的执行语义、版本过滤、幂等键与失败分类仍以 odoo_seed_executor.py 为准。"
+  ],
+  "project": "<项目标识，由项目侧填充>",
+  "odoo_version": "19.0",
+  "channel": "json2",
+  "phases": [
+    { "seed_id": "SEED-001", "plan": "core-services-actions.template.json", "note": "模块安装先行；决定后续能力的功能边界" },
+    { "seed_id": "SEED-002", "plan": "core-services-actions.template.json", "note": "配置参数基线" },
+    { "seed_id": "SEED-003", "plan": "core-services-actions.template.json", "note": "CSV/XML 导入，按批次核对" },
+    { "seed_id": "SEED-004", "plan": "base-data-actions.template.json", "note": "计量单位；Odoo 19 字段分化，已带 odoo_versions" },
+    { "seed_id": "SEED-005", "plan": "base-data-actions.template.json", "note": "币种，先于汇率" },
+    { "seed_id": "SEED-006", "plan": "base-data-actions.template.json", "note": "国家与地区" },
+    { "seed_id": "SEED-007", "plan": "base-data-actions.template.json", "note": "语言与本地化" },
+    { "seed_id": "SEED-008", "plan": "base-data-actions.template.json", "note": "汇率，依赖币种与会计本位币" },
+    { "seed_id": "SEED-009", "plan": "seed-actions.template.json", "note": "客户/供应商/产品主数据基线；产品引用 SEED-004 的计量单位记录 ID" },
+    { "seed_id": "SEED-010", "plan": "plans/org-actions.json", "note": "项目侧待建：组织架构与权限动作计划" },
+    { "seed_id": "SEED-011", "plan": "plans/sequence-actions.json", "note": "项目侧待建：编号规则动作计划" },
+    { "seed_id": "SEED-012", "plan": "plans/accounting-actions.json", "note": "项目侧待建：会计模块初始化动作计划" },
+    { "seed_id": "SEED-013", "plan": "plans/opening-balance-actions.json", "note": "项目侧待建：期初余额导入动作计划；依赖 SEED-012" }
+  ]
+}

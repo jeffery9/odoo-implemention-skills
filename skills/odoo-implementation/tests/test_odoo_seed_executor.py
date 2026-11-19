@@ -145,8 +145,8 @@ class ExecutorTests(unittest.TestCase):
         """基础数据族模板：5 类种子全覆盖、写操作全带幂等键与 shell_code。"""
         data = self._base_template()
         seed_ids = {a["seed_id"] for a in data["actions"]}
-        self.assertEqual(seed_ids, {"SEED-006", "SEED-007", "SEED-008",
-                                    "SEED-009", "SEED-010"})
+        self.assertEqual(seed_ids, {"SEED-004", "SEED-005", "SEED-008",
+                                    "SEED-006", "SEED-007"})
         for action in data["actions"]:
             self.assertTrue(action.get("idempotency_key"),
                             f"写操作缺幂等键：{action}")
@@ -212,6 +212,94 @@ class ExecutorTests(unittest.TestCase):
         self.assertIsNone(E.normalize_version("20.0"))
         with self.assertRaises(E.ExecutorError):
             E.run(plan([]), "rpc", apply=False, odoo_version="20.0")
+
+    def test_16_core_service_methods_are_write_and_require_idempotency(self):
+        """SEED-001~003 方法必须在写白名单内，且缺幂等键一律 CT-007 blocked。"""
+        core_methods = ("button_immediate_install", "set_param", "import_data")
+        for method in core_methods:
+            self.assertIn(method, E.WRITE_METHODS, f"{method} 未登记为写操作")
+            issues = E.validate_actions([{
+                "method": method, "model": "x", "args": [],
+            }])
+            self.assertTrue(any(i["code"] == "CT-007" for i in issues),
+                            f"{method} 缺幂等键未被阻断")
+            self.assertEqual(E.validate_actions([{
+                "method": method, "model": "x", "args": [],
+                "idempotency_key": "k",
+            }]), [], f"{method} 有幂等键仍报错")
+
+    def test_17_core_service_json2_payload_mapping(self):
+        """三类核心服务动作的 JSON-2 请求体符合官方扁平对象格式。"""
+        self.assertEqual(
+            E._json2_payload({"method": "button_immediate_install",
+                              "model": "ir.module.module", "args": [[42]]}),
+            {"ids": [42]})
+        self.assertEqual(
+            E._json2_payload({"method": "set_param",
+                              "model": "ir.config_parameter",
+                              "args": ["k", "v"]}),
+            {"key": "k", "value": "v"})
+        self.assertEqual(
+            E._json2_payload({"method": "set_param",
+                              "model": "ir.config_parameter",
+                              "args": ["k", "v"],
+                              "kwargs": {"group": "base.group_system"}}),
+            {"key": "k", "value": "v", "group": "base.group_system"})
+        self.assertEqual(
+            E._json2_payload({"method": "import_data", "model": "res.partner",
+                              "args": [["name"], [["A"]]]}),
+            {"fields": ["name"], "rows": [["A"]]})
+        # 模型级方法不应带 ids 字段
+        self.assertNotIn("ids", E._json2_payload({
+            "method": "set_param", "model": "ir.config_parameter",
+            "args": ["k", "v"]}))
+
+    def test_18_core_services_template_is_safe_and_complete(self):
+        """核心服务模板：三能力覆盖、写操作带幂等键、版本 fail-closed、18/19 dry-run。"""
+        path = SKILL_DIR / "templates" / "project" / "core-services-actions.template.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        seed_ids = {a["seed_id"] for a in data["actions"]}
+        self.assertEqual(seed_ids, {"SEED-001", "SEED-002", "SEED-003"})
+        for action in data["actions"]:
+            self.assertTrue(action.get("shell_code"), f"缺 shell_code：{action}")
+            if action["method"] in E.WRITE_METHODS:
+                self.assertTrue(action.get("idempotency_key"),
+                                f"写操作缺幂等键：{action}")
+        # 含版本标注却未指定版本 → CT-003 error 零执行
+        blocked = E.run(data, "rpc", apply=False, env={})
+        self.assertEqual(blocked["status"], "error")
+        self.assertEqual(blocked["executed_count"], 0)
+        self.assertIn("CT-003", {i["code"] for i in blocked["issues"]})
+        # 指定版本后 dry-run 全动作通过
+        for version, channel in (("18.0", "rpc"), ("19.0", "json2")):
+            report = E.run(data, channel, apply=False, env={}, odoo_version=version)
+            self.assertEqual(report["status"], "pass")
+            self.assertEqual(report["executed_count"], len(data["actions"]))
+            self.assertTrue(all(r["status"] == "dry_run" for r in report["results"]))
+
+
+    def test_19_master_data_template_covers_product_import(self):
+        """SEED-009 模板覆盖客户与产品主数据；写操作带幂等键；dry-run 全动作通过。"""
+        path = SKILL_DIR / "templates" / "project" / "seed-actions.template.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual({a["seed_id"] for a in data["actions"]}, {"SEED-009"})
+        models = {a["model"] for a in data["actions"]}
+        self.assertIn("res.partner", models)
+        self.assertIn("product.category", models)
+        self.assertIn("product.template", models)
+        for action in data["actions"]:
+            self.assertTrue(action.get("shell_code"), f"缺 shell_code：{action}")
+            if action["method"] in E.WRITE_METHODS:
+                self.assertTrue(action.get("idempotency_key"),
+                                f"写操作缺幂等键：{action}")
+        product = next(a for a in data["actions"]
+                       if a["model"] == "product.template" and a["method"] == "create")
+        self.assertIn("default_code", product["args"][0])
+        self.assertTrue(product["idempotency_key"].startswith(
+            "SEED-009:product.template:"))
+        report = E.run(data, "rpc", apply=False, env={}, odoo_version="19.0")
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["executed_count"], len(data["actions"]))
 
 
 if __name__ == "__main__":

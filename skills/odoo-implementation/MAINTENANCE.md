@@ -10,15 +10,16 @@
 
 | 文件 | 职责 | 允许的变化 | 变更时必须同步 |
 |---|---|---|---|
-| `SKILL.md` | 技能入口、frontmatter 契约、能力目录（SEED-001~010）、CLI | 版本、能力卡、CLI 说明 | 版本号 → 注册表；能力卡 → 索引表；CLI → 执行器实际参数 |
+| `SKILL.md` | 技能入口、frontmatter 契约、能力目录（SEED-001~013）、CLI | 版本、能力卡、CLI 说明 | 版本号 → 注册表；能力卡 → 索引表；CLI → 执行器实际参数 |
 | `TODO.md` | 能力缺口 backlog：现状快照、分级缺口、已否决项、维护规则 | 增删 GAP 条目、状态流转、归档 | 缺口落地涉及文件/版本变更时 → 本表与 `SKILL.md` §2；不与规划文档各写各的 |
 | `schemas/odoo-implementation.schema.json` | 机器契约，`additionalProperties: false` | `ct_` 字段、枚举、领域规则 | `references/contract-guide.md`、`scripts/validate_odoo_manifest.py`、`tests/test_validate_odoo_manifest.py` |
 | `scripts/validate_odoo_manifest.py` | 零依赖契约校验（validate / list） | 校验逻辑 | schema 同名字段规则、正负例测试 |
 | `scripts/odoo_seed_executor.py` | 种子动作**单一执行出口**，版本感知 | 通道、版本矩阵、过滤逻辑 | `references/version-compatibility.md`、SKILL.md CLI、执行器测试、模板 |
+| `scripts/odoo_onboarding.py` | 项目 onboarding **编排层**：profile 解析、依赖排序、逐阶段委派、链式 fail-closed | 排序规则、profile 契约、门禁；**不得新增 RPC/凭据逻辑** | SKILL.md §4 CLI/§6.4、onboarding profile 模板、编排器测试；执行器语义变更时同步委派调用 |
 | `references/contract-guide.md` | 字段语义与迁移指引 | 语义说明 | schema 与校验脚本 |
 | `references/error-taxonomy.md` | 10 类失败分类与重试禁令 | **仅随分类体系变更** | 执行器 issue code、所有引用它的文档 |
 | `references/evidence-levels.md` | 证据分级与 G2/G3/FDE 边界 | **仅随证据体系变更** | SKILL.md 证据边界表述 |
-| `references/version-compatibility.md` | 17/18/19 初始化差异、通道矩阵、动作版本契约 | 核实过的版本差异 | 执行器 `SUPPORTED_VERSIONS`/通道矩阵、模板版本分化、SKILL.md SEED-006 卡 |
+| `references/version-compatibility.md` | 17/18/19 初始化差异、通道矩阵、动作版本契约、核心服务方法差异 | 核实过的版本差异 | 执行器 `SUPPORTED_VERSIONS`/通道矩阵/写方法白名单/JSON-2 映射、模板版本分化、SKILL.md 版本敏感卡（SEED-001/003/004） |
 | `templates/project/*.json` | 动作计划与项目状态模板 | 按业务方确认的数据填充结构 | 对应测试断言、SKILL.md 目录契约 |
 | `tests/*.py` | 离线自测（不连真实 Odoo） | 正负例、变异验证 | 被测代码 |
 
@@ -31,7 +32,7 @@
 ### 2.1 新增/修改种子能力（SEED-xxx）
 
 1. 在 `SKILL.md` §6.1 索引表追加一行，ID 连续、不复用；§6.2 增加同名定义卡（业务目标/前置/步骤/产物/G2/G3/边界）。
-2. 若该能力**版本敏感**（如 SEED-006 计量单位），在卡内加「版本差异」行，并在动作计划模板中用 `odoo_versions` 标注各版本分支。
+2. 若该能力**版本敏感**（如 SEED-004 计量单位），在卡内加「版本差异」行，并在动作计划模板中用 `odoo_versions` 标注各版本分支。
 3. 在 §6.3 依赖顺序中声明它与既有能力的前后关系。
 4. 无配套 `.feature` 的能力，G3 判据必须写「需 `.feature` 覆盖；当前无配套场景，不得声称场景通过」；场景事实源始终是 `gherkin-bdd` 的 `.feature`，本包只引用路径。
 5. 执行器不内置业务动作；任何初始化动作只能写入 `templates/project/` 的计划，由执行器单一出口执行。
@@ -127,7 +128,7 @@ grep -c '^#### SEED-' skills/odoo-implementation/SKILL.md
 |---|---|
 | 技能包版本 | 0.4.0 |
 | 支持 Odoo 版本 | 17.0 / 18.0 / 19.0 |
-| 种子能力 | SEED-001~010 |
+| 种子能力 | SEED-001~013 |
 | 注册表 | skills 22 / agents 18 / capabilities 空 |
 | 全量测试 | 210 passed（基线 `3df9f5f`） |
 | 执行器测试 | 15 项，全离线 |

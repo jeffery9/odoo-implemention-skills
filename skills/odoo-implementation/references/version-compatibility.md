@@ -16,7 +16,7 @@
 
 ## 2. 基础数据模型差异
 
-### 2.1 计量单位（SEED-006）—— 硬差异，必须按版本分化
+### 2.1 计量单位（SEED-004）—— 硬差异，必须按版本分化
 
 | 项 | 17.0 / 18.0 | 19.0 |
 |---|---|---|
@@ -29,7 +29,7 @@
 
 依据：Odoo 18→19 迁移说明与社区实测均确认 `uom.category` 被删除、`factor_inv → relative_factor`、以 `relative_uom_id` 直连参考单位。
 
-### 2.2 币种 / 汇率 / 国家 / 语言（SEED-007~010）—— 字段名稳定
+### 2.2 币种 / 汇率 / 国家 / 语言（SEED-005~007）—— 字段名稳定
 
 `res.currency`、`res.currency.rate`、`res.country`、`res.lang` 在 17/18/19 的上述字段（`symbol`、`decimal_places`、`rate`、`name`、`code`、`active`、`date_format`）未发生破坏性改名，动作计划可用同一份定义。但以下约束仍成立：
 
@@ -39,7 +39,31 @@
 
 > 版本升级仍可能带来字段级微调。动作计划在执行前应于目标版本的 staging 环境用 dry-run + 小批量 `--apply` 验证，不得假设跨版本零改动。
 
-## 3. 动作级版本契约
+### 2.3 产品主数据（SEED-009）—— 引用方式约束，字段未逐版本核实
+
+产品导入模板 `templates/project/seed-actions.template.json` 使用 `product.category`（`name`）与 `product.template`（`name`、`default_code`、`type`、`categ_id`、`uom_id`、`uom_po_id`、`sale_ok`、`purchase_ok`、`list_price`）。
+
+- 计量单位只引用 `uom.uom` 记录 ID，该 ID 由 `SEED-004` 按 17/18 与 19 的不同字段分化导入后提供；产品动作不引用 `uom.category`，因此不受 §2.1 的模型删除影响。模板中的 ID 均为占位值，项目侧必须替换为实际记录 ID。
+- 上述产品字段在 17/18/19 是否存在破坏性改名**尚未逐版本核实**。本包不把「未核实」表述为「三版本一致」；执行前必须在目标版本 staging 用 dry-run 与小批量 `--apply` 验证字段与取值，确认有差异后按动作级 `odoo_versions` 分化。
+- 编码唯一性、产品分类层级与价格口径属业务判断，不由执行器决定。
+
+## 3. 核心服务方法差异（SEED-001~003）
+
+| 能力 | 方法与签名 | 17.0 / 18.0 | 19.0 | 版本标注 |
+|---|---|---|---|---|
+| 模块安装（SEED-001） | `ir.module.module.button_immediate_install`（记录集方法，参数 = 模块记录 ID 列表） | 可用 | 可用；新增挂起状态前置检查 | 动作标 `odoo_versions: 17/18/19` |
+| 配置参数（SEED-002） | `ir.config_parameter.set_param(key, value, group=None)`（模型级方法） | 可用 | 可用，签名一致 | 通用（三版本一致） |
+| 数据导入（SEED-003） | `import_data(fields, rows, mode=...)`（模型级方法） | 可用 | 可用；另有可选 `dryrun` 参数，本包不使用 | 通用（三版本一致） |
+
+依据：
+
+- 模块安装经 XML-RPC 先 `search` 取模块记录 ID，再对 ID 列表调用 `button_immediate_install`；三版本入口均存在。Odoo 19 在 `_button_immediate_function` 前置检查中拒绝存在 `to install`/`to upgrade`/`to remove` 挂起状态的数据库，安装前须确认无挂起操作。
+- JSON-2 请求体为扁平对象：`ids`（记录集 ID 数组）与方法的命名参数作顶层 key；模型级方法省略 `ids`。执行器 `_json2_payload()` 据此把 RPC 的位置参数 `args` 转换为命名参数。依据：Odoo 19 官方 `external_api.html` 的 Request 章节。
+- `import_data` 的 `dryrun` 为 19.0 可选参数，本包模板不声明以保证一份计划跨版本可用。
+
+动作计划模板：`templates/project/core-services-actions.template.json`。模块安装动作带 `odoo_versions` 标注，未指定版本时执行器 fail-closed（`CT-003`）。
+
+## 4. 动作级版本契约
 
 动作可声明 `odoo_versions`（大版本数组）：
 
@@ -49,7 +73,7 @@
   "model": "uom.uom",
   "odoo_versions": ["19.0"],
   "args": [{"name": "米", "relative_uom_id": 1, "relative_factor": 1.0}],
-  "idempotency_key": "SEED-006:19:uom.uom:米"
+  "idempotency_key": "SEED-004:19:uom.uom:米"
 }
 ```
 
@@ -60,7 +84,7 @@
 3. 声明且版本不匹配 → 跳过，计入报告 `skipped_actions`，不产生 issue。
 4. 声明了版本却未给 `--odoo-version` → `CT-003` error，零执行（fail-closed），防止在错误版本上跑错初始化动作。
 
-## 4. 不在本文件范围
+## 5. 不在本文件范围
 
 - 具体业务数据的取值（由业务方确认，属 G3/FDE 验收范畴）。
 - 20.0 及以后版本的支持（当前仅 17/18/19，超出版本改用 `--odoo-version` 会被拒绝）。
