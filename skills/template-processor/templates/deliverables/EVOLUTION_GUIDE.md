@@ -3,7 +3,7 @@
 ## 1. 如何保持知识库更新
 *本项目交付的知识资产是动态的。建议客户技术团队定期运行挖掘脚本。*
 
-- **操作**: `python3 mine_odoo_source.py`
+- **操作**: `python3 scripts/mine_odoo_source.py`
 - **目的**: 捕捉 Odoo 19 后续小版本更新中的新模式。
 
 ---

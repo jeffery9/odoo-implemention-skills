@@ -68,7 +68,7 @@ class CapabilityRegistry:
         if not self.create_if_missing:
             raise FileNotFoundError(
                 f"Capability registry not found: {self.registry_path}. "
-                "运行 discover_capabilities.py 重建注册表，或显式传入 create_if_missing=True。"
+                "运行 scripts/discover_capabilities.py 重建注册表，或显式传入 create_if_missing=True。"
             )
 
         # Create default registry structure (explicit opt-in only)

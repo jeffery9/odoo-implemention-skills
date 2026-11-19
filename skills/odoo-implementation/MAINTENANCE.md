@@ -59,7 +59,7 @@
 **版本升级必须同步注册表**——这是曾经的真实缺陷：SKILL.md 升至 0.4.0 而注册表仍停 0.1.0，因守卫硬编码旧值而全绿。
 
 1. 修改 `SKILL.md` frontmatter `version`。
-2. 运行 `python3 discover_capabilities.py` 重建注册表。
+2. 运行 `python3 scripts/discover_capabilities.py` 重建注册表。
 3. 确认 `tests/test_registry_integration.py::test_04` 通过（该测试已从 SKILL.md 动态读取版本，漂移即失败）。
 4. 禁止在守卫测试中硬编码期望版本值。
 
@@ -86,7 +86,7 @@ python3 -m pytest -q
 #    否则会把「尚未提交的合法版本更新」误判为不幂等）
 R=skills/capability-twin-orchestrator/capability_registry.json
 H1=$(shasum -a 256 "$R" | cut -d' ' -f1)
-python3 discover_capabilities.py >/dev/null
+python3 scripts/discover_capabilities.py >/dev/null
 H2=$(shasum -a 256 "$R" | cut -d' ' -f1)
 [ "$H1" = "$H2" ] && echo "幂等 PASS" || echo "幂等 FAIL"
 

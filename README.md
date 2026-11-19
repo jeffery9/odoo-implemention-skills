@@ -28,11 +28,11 @@ export ODOO_SOURCE_PATH="/path/to/odoo-19.0"
 ```
 
 ### 2.2 高并发多线程采矿（Continuous Mining）
-可以通过启动 `mine_odoo_source.py` 开启 **Parallel Agentic Mesh（并行智能体网格）** 高速采矿。系统将自动分配多线程（默认 4 线程），采用 `threading.Lock` 线程锁，并发对 Odoo 核心模块的 `depends`、模型继承、视图树和 ORM 控制流进行高价值业务感知翻译：
+可以通过启动 `scripts/mine_odoo_source.py` 开启 **Parallel Agentic Mesh（并行智能体网格）** 高速采矿。系统将自动分配多线程（默认 4 线程），采用 `threading.Lock` 线程锁，并发对 Odoo 核心模块的 `depends`、模型继承、视图树和 ORM 控制流进行高价值业务感知翻译：
 ```bash
-# 执行语法: python3 mine_odoo_source.py [模块限制数量] [并发线程数]
+# 执行语法: python3 scripts/mine_odoo_source.py [模块限制数量] [并发线程数]
 # 示例: 并发 8 线程分析 15 个 Odoo 核心模块:
-python3 mine_odoo_source.py 15 8
+python3 scripts/mine_odoo_source.py 15 8
 ```
 
 ---

@@ -14,7 +14,7 @@ import threading
 
 # 按本文件定位框架：不假设仓库目录名、不依赖 CWD。
 # 早期版本以上级目录为锚点、并把仓库目录名直接拼进路径，换目录名或改用 worktree 即失效。
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 ORCHESTRATOR_SCRIPTS = REPO_ROOT / "skills" / "capability-twin-orchestrator" / "scripts"
 sys.path.insert(0, str(ORCHESTRATOR_SCRIPTS))
 

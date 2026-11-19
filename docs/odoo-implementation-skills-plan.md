@@ -100,7 +100,7 @@
 
 | 阶段 | 目标 | 新增内容 | 退出判据 |
 |---|---|---|---|
-| P0 契约基座 | 建立可回退的扩展点 | `odoo-implementation` 骨架、schema、校验脚本、两处可选钩子；经 `discover_capabilities.py` 登记进注册表 | 195 项测试全绿；21 个既有技能在无新字段时校验通过；负例校验返回非零；注册表 21→22 且幂等 |
+| P0 契约基座 | 建立可回退的扩展点 | `odoo-implementation` 骨架、schema、校验脚本、两处可选钩子；经 `scripts/discover_capabilities.py` 登记进注册表 | 195 项测试全绿；21 个既有技能在无新字段时校验通过；负例校验返回非零；注册表 21→22 且幂等 |
 | P1 垂直切片 | 用会计模块端到端跑通 | 复用 `shipped_not_invoiced.feature`；保持 CT 原架构，不引入新的分层能力链 | 既有 BDD 门禁照常产出 UAT 与追溯矩阵；G2 通过不等于 G3 的提示仍在 |
 | P2 核心服务 | 收敛 Odoo 外部操作 | `odoo_rpc.py` 单一出口、模块安装、配置参数、CSV/XML 导入 | 模块级技能中直接 RPC 调用点数为 0；缺凭据时返回 `status=blocked` |
 | P3 横向复制 | 扩展到 mrp / sale / stock | 复用 `mo_completion_posting.feature`；按目录登记新能力 | 每个新模块至少 1 个场景；注册表 `capabilities` 节点可枚举 |
@@ -126,7 +126,7 @@ P0 → P1 → P2 串行；P3 必须在 P1、P2 完成后启动；P4 可提前准
 1. 首个模块 `account`，直接复用现有 `shipped_not_invoiced.feature`。**待办（P1）**。
 2. 新增独立技能包 `odoo-implementation`，不并入 orchestrator。**已定，P0 已落地。**
 3. 保持 CT 原架构：不引入五层分层能力链，`ct_layer` 维持四层分类标签，**不强制任何技能声明**。已否决五层链方案（曾一度改 schema 为五层，已回退）。
-4. 注册表集成走既有 `discover_capabilities.py`，`odoo-implementation` 已登记（skills 21→22，`capabilities` 保持空节点）。**已落地并有回归测试锁定。**
+4. 注册表集成走既有 `scripts/discover_capabilities.py`，`odoo-implementation` 已登记（skills 21→22，`capabilities` 保持空节点）。**已落地并有回归测试锁定。**
 5. 是否在 `6+3+4+N` 工作流图补挂载说明，仍**待确认**。
 
 P0 已完成并集成；P1 及以后按阶段独立回退。

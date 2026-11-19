@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-FRAMEWORK_ROOT = Path(__file__).resolve().parent
+FRAMEWORK_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = FRAMEWORK_ROOT / "skills"
 ORCHESTRATOR_DIR = SKILLS_DIR / "capability-twin-orchestrator"
 # 提示型代理随 orchestrator 技能一起分发，npx skills 才认得并安装；
