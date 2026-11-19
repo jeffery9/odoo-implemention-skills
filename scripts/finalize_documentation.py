@@ -4,20 +4,50 @@
 import json, os, sys, glob
 from pathlib import Path
 
-def find_root():
-    """定位框架仓库根：以 scripts/ 与 skills/ 两个必备目录同时存在为锚。
+#: 交付模板相对容器的固定结构（容器名任意：skills / .claude/skills / .agents/skills 等）
+_TEMPLATE_PARTS = ("template-processor", "templates", "deliverables")
 
-    早期版本依赖已不存在的 GEMINI.md，且以 CWD 为起点会随调用目录漂移；
-    现按本文件所在位置向上查找，避免 worktree / 改名后错位。
+
+def find_root():
+    """定位框架根：以 scripts/ 与一个含 template-processor 的技能容器同时存在为锚。
+
+    不写死任何厂商容器名（`.claude` / `.agents` / `skills` 均可），
+    也不以 CWD 为起点；按本文件位置向上查找，避免 worktree / 改名后错位。
     """
-    for parent in [Path(__file__).resolve().parent] + list(Path(__file__).resolve().parents):
-        if (parent / 'scripts').is_dir() and (parent / 'skills').is_dir():
+    script_dir = Path(__file__).resolve().parent
+    for parent in [script_dir] + list(script_dir.parents):
+        if not (parent / "scripts").is_dir():
+            continue
+        # 容器中必须存在 template-processor 技能；用 rglob 覆盖隐藏容器
+        if any(True for _ in parent.rglob("template-processor/SKILL.md")):
             return parent
-    return Path(__file__).resolve().parent.parent
+    return script_dir.parent
+
+
+def find_deliverables_dir(root):
+    """按结构特征定位交付模板目录，与容器目录名无关。
+
+    返回 `.../<任意容器>/template-processor/templates/deliverables`。
+    找不到时返回 None，由调用方显式失败，不猜测某厂商的默认位置。
+    """
+    wanted = Path("/".join(_TEMPLATE_PARTS))
+    for candidate in root.rglob(wanted / "*.md"):
+        directory = candidate.parent
+        if directory.is_dir():
+            return directory
+    return None
 
 def main():
-    if len(sys.argv) < 2: return
-    target_module = sys.argv[1]
+    """用法：finalize_documentation.py <module> [--template <模板名>]"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="由分析快照渲染功能规格文档")
+    parser.add_argument("target_module", help="目标 Odoo 模块名")
+    parser.add_argument("--template", default="FUNCTIONAL_DOC_SPEC.md",
+                        help="template-processor 交付模板名（默认 FUNCTIONAL_DOC_SPEC.md）")
+    args = parser.parse_args()
+    target_module = args.target_module
+    template_name = args.template
     root = find_root()
     
     snapshot_dir = root / "kb/mem/snapshots"
@@ -105,17 +135,17 @@ def main():
         "{PITFALLS}": comp_res.get("pitfalls", "Common configuration errors.")
     }
 
-    # 模板随 template-processor 技能分发（仓库布局与安装布局通用）
-    candidates = [
-        root / "skills/template-processor/templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",
-        root / ".claude/skills/template-processor/templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",
-        root / "templates/deliverables/STRATEGIC_FUNCTIONAL_SPEC_V6.md",   # 历史布局
-    ]
-    template_path = next((p for p in candidates if p.is_file()), None)
-    if template_path is None:
+    # 模板随 template-processor 技能分发：按结构特征定位，不假设容器目录名。
+    # 模板名由调用方经 --template 指定（默认 FUNCTIONAL_DOC_SPEC.md），
+    # 避免绑定某个既不存在、又写死在脚本里的历史文件名。
+    deliverables = find_deliverables_dir(root)
+    template_path = deliverables / template_name if deliverables else None
+    if template_path is None or not template_path.is_file():
+        available = sorted(p.name for p in deliverables.glob("*.md")) if deliverables else []
         raise SystemExit(
-            "未找到 STRATEGIC_FUNCTIONAL_SPEC_V6.md；"
-            "请确认 template-processor 技能已就位（skills/template-processor/templates/deliverables）。"
+            f"未找到交付模板 {template_name}；"
+            f"可用模板：{', '.join(available) or '（无）'}。"
+            "请用 --template 指定，或确认 template-processor 技能已就位。"
         )
     template = template_path.read_text(encoding='utf-8')
     for k, v in mapping.items():
