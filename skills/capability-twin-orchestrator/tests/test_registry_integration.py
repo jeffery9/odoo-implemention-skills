@@ -7,7 +7,7 @@
 它不能只在磁盘上存在、却不被内部注册表认识（那会成为无法被
 execute_skill / 能力列举发现的孤岛）。
 
-断言对象是 discover_capabilities.py 的既有输出，不引入新的发现机制。
+断言对象是 scripts/discover_capabilities.py 的既有输出，不引入新的发现机制。
 """
 
 import json
@@ -46,7 +46,7 @@ class RegistryIntegrationTests(unittest.TestCase):
     def test_01_skill_is_registered(self):
         """新技能包必须出现在 skills 节点，否则 CT 无从发现它。"""
         self.assertIn("odoo-implementation", self.skills,
-                      "odoo-implementation 未登记：请运行 discover_capabilities.py")
+                      "odoo-implementation 未登记：请运行 scripts/discover_capabilities.py")
 
     def test_02_registry_points_to_real_files(self):
         """注册表里的 path/file 必须解析到真实存在的技能文件。"""
@@ -72,7 +72,7 @@ class RegistryIntegrationTests(unittest.TestCase):
         """
         entry = self.skills["odoo-implementation"]
         self.assertEqual(entry["version"], _frontmatter_value("version"),
-                         "注册表版本与 SKILL.md frontmatter 漂移：请重跑 discover_capabilities.py")
+                         "注册表版本与 SKILL.md frontmatter 漂移：请重跑 scripts/discover_capabilities.py")
         self.assertEqual(entry["allowed_tools"],
                          ["Read", "Write", "Edit", "Glob", "Grep", "Bash"])
 

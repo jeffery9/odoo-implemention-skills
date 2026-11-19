@@ -101,7 +101,7 @@ class InstallLayoutTest(unittest.TestCase):
         self.assertFalse((self.tmp / "templates").exists())
         self.assertFalse((self.tmp / "agents").exists())
         self.assertFalse((self.tmp / "scripts").exists())
-        self.assertFalse((self.tmp / "discover_capabilities.py").exists())
+        self.assertFalse((self.tmp / "scripts/discover_capabilities.py").exists())
 
     def test_02_layout_detected_as_install(self):
         self.assertEqual(self.fp.installed_as(), "install")

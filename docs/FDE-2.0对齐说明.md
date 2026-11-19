@@ -179,7 +179,7 @@
 | `skills/capability-twin-orchestrator/SKILL.md` | 修改 | Core Framework / Best Practices / Resources 增 FDE 检查点入口 |
 | `docs/FDE-2.0对齐说明.md` | 新增 → 改写 | 本文；§1 增第 4 条融入结论、§2/§5/§7 口径同步为「摘要内置、自包含 + 检查点挂载」 |
 | `README.md` | 增一节入口引用 | 指向能力单元与对齐说明、登记流水线检查点，不复制标准正文（遵循 README 使用向分工） |
-| `skills/capability-twin-orchestrator/capability_registry.json` | 重建 | 由 `discover_capabilities.py` 重扫 Agent / Skill，注册 `fde-methodology`；顺带修正历史遗留的仓库绝对路径 |
+| `skills/capability-twin-orchestrator/capability_registry.json` | 重建 | 由 `scripts/discover_capabilities.py` 重扫 Agent / Skill，注册 `fde-methodology`；顺带修正历史遗留的仓库绝对路径 |
 
 > 摘要合计 580 行 / 原文 5784 行（10.0%）。本对齐说明为**判断与边界记录**；
 > 执行检查在能力单元内，压缩后的标准口径在 4 份摘要内，流水线挂载点在编排器路由表内。

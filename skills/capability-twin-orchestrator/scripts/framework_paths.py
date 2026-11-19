@@ -56,14 +56,14 @@ def installed_as() -> str:
     区分仓库布局与安装布局，用于诊断与报告。
 
     判定依据（两者同时成立才算仓库布局）：
-    1. 框架根存在 `discover_capabilities.py` —— 源码仓库专有，不被任何技能收录；
+    1. 框架根存在 `scripts/discover_capabilities.py` —— 源码仓库专有，不被任何技能收录；
     2. 技能容器父目录不是隐藏目录（安装目标形如 `.claude/skills`、`.agents/skills`）。
 
     注意：symlink 安装时 `Path.resolve()` 会跟随链接回到源仓库，
     此时判定为 `repository` 是**正确**的 —— 运行的就是源仓库那份代码。
     """
     container = SKILLS_ROOT.parent
-    has_repo_marker = (FRAMEWORK_ROOT / "discover_capabilities.py").is_file()
+    has_repo_marker = (FRAMEWORK_ROOT / "scripts" / "discover_capabilities.py").is_file()
     hidden_container = container.name.startswith(".")
     return "repository" if has_repo_marker and not hidden_container else "install"
 
