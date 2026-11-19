@@ -1,0 +1,76 @@
+{
+  "template_id": "core-services-actions",
+  "purpose": "SEED-001~003 核心服务初始化动作计划（模块安装 / 配置参数 / CSV 数据导入）；项目侧按实际值填充后交由 odoo_seed_executor.py 执行",
+  "usage": "必须显式 --odoo-version；动作含 odoo_versions 标注，未指定版本时执行器 CT-003 error 零执行。默认 dry-run，--apply 才真实写入。",
+  "version_notes": {
+    "SEED-001": "已核实：button_immediate_install 在 17/18/19 均存在；Odoo 19 增加 pending-state 前置检查（存在 to install/to upgrade/to remove 时拒绝），安装前须确认无挂起模块操作。",
+    "SEED-002": "已核实：ir.config_parameter.set_param(key, value, group=None) 在 17/18/19 一致；set_param 本身按 key 覆盖，具备天然幂等性。",
+    "SEED-003": "已核实：import_data(fields, rows, mode=...) 在 17/18/19 可用；Odoo 19 另有 dryrun 参数（可选），本模板不使用以保证跨版本一致。"
+  },
+  "idempotency_policy": {
+    "SEED-001": "幂等键 = 模块技术名；shell_code 内先按 name + state=uninstalled 过滤，已安装则跳过。",
+    "SEED-002": "幂等键 = 参数 key；set_param 按 key 覆盖，重复执行结果一致。",
+    "SEED-003": "幂等键 = 批次号；批次号对应一份外部数据快照，重复执行同一批次不得产生新记录——当前执行器的 idempotency_key 为必填标签（TODO GAP-001），真正的重放防护由项目侧账本或人工确认承担。"
+  },
+  "actions": [
+    {
+      "seed_id": "SEED-001",
+      "note": "只读探查：确认目标模块当前状态，避免对已安装模块重复安装。",
+      "odoo_versions": ["17.0", "18.0", "19.0"],
+      "method": "search_read",
+      "model": "ir.module.module",
+      "args": [[["name", "=", "account"]]],
+      "kwargs": {"fields": ["name", "state"], "limit": 1},
+      "shell_code": "print(env['ir.module.module'].search_read([('name', '=', 'account')], ['name', 'state'], limit=1))"
+    },
+    {
+      "seed_id": "SEED-001",
+      "note": "Odoo 19 安装前须确认无挂起模块操作；args[0] 为模块记录 ID 列表，项目侧按上一动作返回的 id 填充。",
+      "odoo_versions": ["17.0", "18.0", "19.0"],
+      "method": "button_immediate_install",
+      "model": "ir.module.module",
+      "args": [[1]],
+      "kwargs": {},
+      "idempotency_key": "SEED-001:module:account",
+      "shell_code": "m = env['ir.module.module'].search([('name', '=', 'account'), ('state', '=', 'uninstalled')], limit=1)\nif m:\n    m.button_immediate_install()"
+    },
+    {
+      "seed_id": "SEED-002",
+      "note": "配置参数 key/value 由项目侧替换；set_param 按 key 覆盖，跨 17/18/19 一致。",
+      "method": "set_param",
+      "model": "ir.config_parameter",
+      "args": ["base.setup.baseline", "initialized"],
+      "kwargs": {},
+      "idempotency_key": "SEED-002:config:base.setup.baseline",
+      "shell_code": "env['ir.config_parameter'].set_param('base.setup.baseline', 'initialized')"
+    },
+    {
+      "seed_id": "SEED-002",
+      "note": "只读核对：确认参数已写入。",
+      "method": "search_read",
+      "model": "ir.config_parameter",
+      "args": [[["key", "=", "base.setup.baseline"]]],
+      "kwargs": {"fields": ["key", "value"], "limit": 1},
+      "shell_code": "print(env['ir.config_parameter'].search_read([('key', '=', 'base.setup.baseline')], ['key', 'value'], limit=1))"
+    },
+    {
+      "seed_id": "SEED-003",
+      "note": "CSV/XML 数据导入：args[0]=字段名列表，args[1]=数据行；项目侧替换为实际批次数据。批次号即幂等键。",
+      "method": "import_data",
+      "model": "res.partner",
+      "args": [["name"], [["示例客户（请替换）"]]],
+      "kwargs": {},
+      "idempotency_key": "SEED-003:batch:partners-2026-11",
+      "shell_code": "env['res.partner'].import_data(['name'], [['示例客户（请替换）']])"
+    },
+    {
+      "seed_id": "SEED-003",
+      "note": "只读核对：确认批次导入结果。",
+      "method": "search_count",
+      "model": "res.partner",
+      "args": [[["name", "=", "示例客户（请替换）"]]],
+      "kwargs": {},
+      "shell_code": "print(env['res.partner'].search_count([('name', '=', '示例客户（请替换）')]))"
+    }
+  ]
+}

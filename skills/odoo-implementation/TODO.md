@@ -2,7 +2,7 @@
 
 本文件是 `skills/odoo-implementation/` 的**能力缺口 backlog**，随技能包安装（`npx skills`）。它回答一个问题：**这个包现在还缺什么、下一步该补什么**。与 `MAINTENANCE.md`（怎么改）分工：TODO 管「做什么」，MAINTENANCE 管「怎么做、怎么验」。
 
-状态口径以**当前代码与 SKILL.md**为准，不以规划文档的阶段标签为准。`docs/odoo-implementation-skills-plan.md` 仍写「P0 已落地、P1 及以后未开始」，但种子能力族（SEED-001~010）与版本感知执行器已实际落地——规划文档的阶段描述已滞后，见 GAP-007。
+状态口径以**当前代码与 SKILL.md**为准，不以规划文档的阶段标签为准。`docs/odoo-implementation-skills-plan.md` 仍写「P0 已落地、P1 及以后未开始」，但种子能力族（SEED-001~013）与版本感知执行器已实际落地——规划文档的阶段描述已滞后，见 GAP-007。
 
 ---
 
@@ -11,9 +11,9 @@
 | 能力族 | 已落地产物 | 状态 |
 |---|---|---|
 | 契约层 | `schema.json`（5 个可选 `ct_` 字段 + `if/then`）、`validate_odoo_manifest.py` | 已落地 |
-| 单一执行出口 | `odoo_seed_executor.py`：rpc/json2/shell 三通道、版本感知、dry-run 默认 | 已落地 |
-| 种子能力 | SEED-001~010（含基础数据族 006~010），索引与定义卡 10/10 闭合 | 已落地 |
-| 项目模板 | project-state / artifact-index / seed-actions / base-data-actions | 已落地 |
+| 单一执行出口 | `odoo_seed_executor.py`：rpc/json2/shell 三通道、版本感知、dry-run 默认；写白名单含三类核心服务方法 | 已落地 |
+| 种子能力 | SEED-001~013（核心服务族 001~003 + 基础数据族 004~008），索引与定义卡 13/13 闭合；编号按 onboarding 执行顺序 | 已落地 |
+| 项目模板 | project-state / artifact-index / seed-actions（客户 + 产品主数据）/ base-data-actions / core-services-actions | 已落地 |
 | 参考文档 | contract-guide / error-taxonomy / evidence-levels / version-compatibility | 已落地 |
 | 流水线挂载 | orchestrator 两处可选钩子（`_bdd_preflight` / `render_deliverables_bundle`），默认关闭 | 已落地 |
 | 注册与守卫 | 注册表 0.4.0 同步、版本假绿守卫已修复、210 passed | 已落地 |
@@ -36,19 +36,11 @@
 - **完成判据**：① 同一计划 `--apply` 连续执行两次，第二次所有写动作 `skipped` 且 Odoo 侧无新增记录；② 离线测试覆盖「首写成功 + 重放跳过 + 账本损坏 fail-closed」；③ `MAINTENANCE.md` §1 登记账本产物归属。
 - **状态**：TODO
 
-### GAP-002 · P2「核心服务」三类能力未落地 · P0
-
-- **现状**：规划文档 §5 P2 要求 `odoo_rpc.py` 单一出口、**模块安装、配置参数、CSV/XML 导入**。实际只落地了种子动作执行出口（`odoo_seed_executor.py`）；`import_data` 虽在 `WRITE_METHODS` 白名单内，但无模块安装动作、无配置参数动作、无 CSV/XML 导入模板与测试。规划 §4 写的 `scripts/odoo_rpc.py` 文件从未存在（实际为 `odoo_seed_executor.py`）。
-- **判定**：这是规划中明确的阶段目标，不是凭空追加。但需先决定——这三类是做成**通用动作**（写入动作计划、仍走现有执行出口）还是**专用能力卡**。倾向前者，符合 §1「不新增业务专用执行接口」。
-- **建议动作**：① 明确「模块安装/配置参数/CSV 导入」的幂等语义（安装用模块名、配置用参数 key、导入用批次号）；② 以动作计划模板落地，不新增脚本；③ 模块安装涉及版本差异（应用列表加载机制），按 GAP-005 标注 `odoo_versions`。
-- **完成判据**：三类能力各有一份可执行模板 + 至少 1 项离线测试 + SKILL.md 索引条目（若定性为种子能力则编号 SEED-011 起，不复用 001~010）。
-- **状态**：TODO
-
 ### GAP-003 · 10 个种子能力中 8 个无配套场景，G3 证据链断裂 · P1
 
-- **现状**：SEED-001/003/004/006/007/008/009/010 的「配套场景」列均为「暂无，需由 `gherkin-bdd` 补充」。只有 SEED-002/005 引用 `features/account/shipped_not_invoiced.feature`；`features/mrp/mo_completion_posting.feature` 存在但**没有任何 SEED 能力引用**。
+- **现状**：SEED-004/005/006/007/008/009/010/011 的「配套场景」列均为「暂无，需由 `gherkin-bdd` 补充」。只有 SEED-012/013 引用 `features/account/shipped_not_invoiced.feature`；`features/mrp/mo_completion_posting.feature` 存在但**没有任何 SEED 能力引用**。
 - **影响**：按 SKILL.md §6.2，这些能力的 G3 判据只能写「不得声称场景通过」，因此只能产出 E1/E2 证据，无法进入 G3/E4。
-- **建议动作**：优先为基础数据族（SEED-006~010，已可直接执行）补一份 `.feature` 覆盖「初始化 → 核对 → 冻结基线」；再补 SEED-003/004 的权限与编号场景；mrp 场景与 SEED 能力建立引用关系。
+- **建议动作**：优先为基础数据族（SEED-004~008，已可直接执行）补一份 `.feature` 覆盖「初始化 → 核对 → 冻结基线」；再补 SEED-010/011 的权限与编号场景；mrp 场景与 SEED 能力建立引用关系。
 - **完成判据**：至少 1 个新 `.feature` 纳入 `gherkin-bdd` 门禁且被对应 SEED 卡引用；相关能力卡 G3 判据由「暂无场景」改为真实场景结论；证据等级按 `evidence-levels.md` 标注。
 - **状态**：TODO
 - **注意**：场景事实源始终是 `gherkin-bdd` 的 `.feature`，本包只引用路径，不得自造场景语言。
@@ -61,11 +53,11 @@
 - **完成判据**：`version-compatibility.md` 增加经核实的 20.0 条目；执行器通道矩阵与文档一致；19.0 及 20.0 的 dry-run 用例通过。
 - **状态**：BLOCKED（依赖 Odoo 20.0 稳定版官方外部 API 文档）
 
-### GAP-005 · 版本分化目前只有 SEED-006 一处，其余能力未经版本核实 · P1
+### GAP-005 · 版本分化目前只有 SEED-004 一处，其余能力未经版本核实 · P1
 
-- **现状**：只有 SEED-006 定义卡带「版本差异」行、`base-data-actions.template.json` 对 UoM 做了 `odoo_versions` 分化。SEED-007~010 因字段名稳定标为「通用」，但这是**推断**而非逐版本核实；SEED-002/005（会计科目/期初余额）完全未标注版本。
+- **现状**：只有 SEED-004 定义卡带「版本差异」行、`base-data-actions.template.json` 对 UoM 做了 `odoo_versions` 分化。SEED-005/006/007/008 因字段名稳定标为「通用」，但这是**推断**而非逐版本核实；SEED-012/013（会计科目/期初余额）完全未标注版本。
 - **风险**：把「未核实」当成「通用」会在错误版本上跑错初始化——正是执行器 CT-003 fail-closed 要防的场景，但 fail-closed 只对**已标注版本敏感**的动作生效。
-- **建议动作**：逐项核实 SEED-002/005/007/008/009/010 在 17/18/19 的字段与模型差异；把确认无差异的项在定义卡写明「已核实三版本一致」（带依据），未核实的加 `odoo_versions` 标注。
+- **建议动作**：逐项核实 SEED-005/006/007/008/009/012/013 在 17/18/19 的字段与模型差异；把确认无差异的项在定义卡写明「已核实三版本一致」（带依据），未核实的加 `odoo_versions` 标注。
 - **完成判据**：10 张卡的版本状态全部为「已核实一致」或「已分化」之一，无空白；`version-compatibility.md` 记录核实依据。
 - **状态**：TODO
 
@@ -112,7 +104,8 @@
 
 | 编号 | 完成内容 | 完成提交 |
 |---|---|---|
-| — | 暂无 | — |
+| GAP-002 | P2 核心服务三类能力落地：SEED-001 模块安装（`button_immediate_install`）、SEED-002 配置参数（`set_param`）、SEED-003 CSV/XML 导入（`import_data`）；新增 `core-services-actions.template.json`、执行器写白名单与 JSON-2 映射、`version-compatibility.md` §3、3 项离线测试（执行器 15→18）；索引与定义卡 13/13。模块安装按版本标注 `odoo_versions`，未指定版本 fail-closed。 | 待提交 |
+| GAP-009 | SEED-009 定义卡声明覆盖产品，但动作模板原先只有客户导入；补齐 `product.category` 与 `product.template` 建档动作、按编码读回核对、幂等键与 shell_code；SEED-009 卡明确产品编码唯一性与计量单位引用判据，`version-compatibility.md` §2.3 记录「字段未逐版本核实 + staging 验证」口径；新增 1 项离线测试。 | 待提交 |
 
 ---
 

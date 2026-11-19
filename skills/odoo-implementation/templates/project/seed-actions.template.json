@@ -1,11 +1,11 @@
 {
-  "_comment": "种子能力动作计划模板。由项目侧按 SEED 能力填充，交由 scripts/odoo_seed_executor.py 单一出口执行。凭据只从环境变量读取，绝不写入本文件。写操作必须提供 idempotency_key。",
-  "seed_id": "SEED-001",
+  "_comment": "种子能力动作计划模板（SEED-009 主数据初始化）。覆盖客户/供应商与产品主数据：产品分类、产品模板及核对。由项目侧按实际编码与去重规则填充，交由 scripts/odoo_seed_executor.py 单一出口执行。凭据只从环境变量读取，绝不写入本文件。写操作必须提供 idempotency_key。产品引用的 uom_id/uom_po_id 必须替换为 SEED-004 导入后的真实计量单位记录 ID，不得直接使用示例值。",
+  "seed_id": "SEED-009",
   "seed_name": "主数据初始化",
   "channel": "rpc",
   "actions": [
     {
-      "seed_id": "SEED-001",
+      "seed_id": "SEED-009",
       "method": "search_count",
       "model": "res.partner",
       "args": [{"customer_rank": 1}],
@@ -13,13 +13,51 @@
       "shell_code": "env['res.partner'].search_count([('customer_rank','>',0)])"
     },
     {
-      "seed_id": "SEED-001",
+      "seed_id": "SEED-009",
       "method": "create",
       "model": "res.partner",
       "args": [{"name": "示例客户", "customer_rank": 1}],
       "kwargs": {},
-      "idempotency_key": "SEED-001:partner:示例客户",
+      "idempotency_key": "SEED-009:partner:示例客户",
       "shell_code": "env['res.partner'].create({'name':'示例客户','customer_rank':1})"
+    },
+    {
+      "seed_id": "SEED-009",
+      "note": "只读探查：确认目标产品分类是否已存在，避免重复建档。",
+      "method": "search_count",
+      "model": "product.category",
+      "args": [[["name", "=", "成品"]]],
+      "kwargs": {},
+      "shell_code": "print(env['product.category'].search_count([('name', '=', '成品')]))"
+    },
+    {
+      "seed_id": "SEED-009",
+      "note": "建立产品分类；分类名与层级由业务方确认，已存在则项目侧跳过本动作。",
+      "method": "create",
+      "model": "product.category",
+      "args": [{"name": "成品"}],
+      "kwargs": {},
+      "idempotency_key": "SEED-009:product.category:成品",
+      "shell_code": "env['product.category'].create({'name': '成品'})"
+    },
+    {
+      "seed_id": "SEED-009",
+      "note": "产品主数据导入：default_code 为业务方确认的唯一编码；categ_id 按上一动作返回的分类 ID 替换，uom_id/uom_po_id 按 SEED-004 导入后的记录 ID 替换。示例值仅为占位，不得直接上线。",
+      "method": "create",
+      "model": "product.template",
+      "args": [{"name": "示例产品", "default_code": "DEMO-001", "type": "product", "sale_ok": true, "purchase_ok": true, "categ_id": 1, "uom_id": 1, "uom_po_id": 1, "list_price": 0.0}],
+      "kwargs": {},
+      "idempotency_key": "SEED-009:product.template:DEMO-001",
+      "shell_code": "env['product.template'].create({'name': '示例产品', 'default_code': 'DEMO-001', 'type': 'product', 'sale_ok': True, 'purchase_ok': True, 'categ_id': 1, 'uom_id': 1, 'uom_po_id': 1, 'list_price': 0.0})"
+    },
+    {
+      "seed_id": "SEED-009",
+      "note": "只读核对：按 default_code 读回产品，确认编码、分类与计量单位引用正确。",
+      "method": "search_read",
+      "model": "product.template",
+      "args": [[["default_code", "=", "DEMO-001"]]],
+      "kwargs": {"fields": ["name", "default_code", "categ_id", "uom_id"], "limit": 1},
+      "shell_code": "print(env['product.template'].search_read([('default_code', '=', 'DEMO-001')], ['name', 'default_code', 'categ_id', 'uom_id'], limit=1))"
     }
   ]
 }

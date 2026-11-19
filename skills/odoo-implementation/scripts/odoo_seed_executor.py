@@ -54,7 +54,13 @@ CHANNEL_CREDENTIALS = {
     "shell": ("url", "db", "user", "password"),
 }
 
-WRITE_METHODS = frozenset({"create", "write", "unlink", "copy", "import_data"})
+# 写操作白名单：标准 CRUD + 三类核心服务动作（模块安装/配置参数/数据导入）。
+# 核心服务动作虽非 CRUD，但都改变数据库状态，必须与写操作一样强制幂等键。
+WRITE_METHODS = frozenset({
+    "create", "write", "unlink", "copy", "import_data",
+    "button_immediate_install",  # SEED-001 模块安装（ir.module.module，记录集方法）
+    "set_param",                 # SEED-002 配置参数（ir.config_parameter，模型级方法）
+})
 READ_METHODS = frozenset({"search", "search_read", "read", "search_count"})
 RETRYABLE_READ = 2  # 只读失败最多重试 2 次（error-taxonomy.md 重试禁令）
 
@@ -235,8 +241,34 @@ def _json2_payload(action: Dict[str, Any]) -> Dict[str, Any]:
     kwargs = action.get("kwargs", {})
     if method == "create":
         return {"vals": args[0] if args else kwargs.get("vals", {})}
+    # 核心服务动作（SEED-001~003）：JSON-2 请求体为扁平对象，方法参数作顶层 key。
+    # args 的位置约定与 XML-RPC execute_kw 保持一致，在此转换为命名参数。
+    if method == "button_immediate_install":
+        # 记录集方法：模块记录 ID 列表作 ids 字段
+        return {"ids": args[0] if args else kwargs.get("ids", [])}
+    if method == "set_param":
+        # 模型级方法：set_param(key, value, group=None)
+        payload: Dict[str, Any] = {
+            "key": args[0] if args else kwargs.get("key", ""),
+            "value": args[1] if len(args) > 1 else kwargs.get("value", ""),
+        }
+        if "group" in kwargs:
+            payload["group"] = kwargs["group"]
+        return payload
+    if method == "import_data":
+        # 模型级方法：import_data(fields, rows, mode=...)
+        payload = {
+            "fields": args[0] if args else kwargs.get("fields", []),
+            "rows": args[1] if len(args) > 1 else kwargs.get("rows", []),
+        }
+        if len(args) > 2:
+            payload["mode"] = args[2]
+        for key in ("mode", "current_company_id", "dryrun"):
+            if key in kwargs:
+                payload[key] = kwargs[key]
+        return payload
     if method in {"write", "unlink", "read"}:
-        payload: Dict[str, Any] = {"ids": args[0] if args else kwargs.get("ids", [])}
+        payload = {"ids": args[0] if args else kwargs.get("ids", [])}
         if method == "write":
             payload["vals"] = args[1] if len(args) > 1 else kwargs.get("vals", {})
         if method == "read" and kwargs.get("fields"):
