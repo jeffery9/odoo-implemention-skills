@@ -16,6 +16,7 @@
 `docs/` 下的历史评审记录引用这些路径作为缺陷证据，故排除。
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -24,6 +25,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+# 历史脚本统一收口在 scripts/，legacy_paths 从仓库根迁至此处
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 TEXT_SUFFIXES = {".py", ".md", ".json", ".sh", ".yaml", ".yml",
                  ".toml", ".feature", ".txt", ".cfg", ".ini"}
@@ -94,6 +97,51 @@ class PortabilityGuardTest(unittest.TestCase):
         self.assertEqual(offenders, [],
                          "发现写死仓库目录名的路径拼接，请用 Path(__file__).resolve() 推导：\n  "
                          + "\n  ".join(offenders))
+
+
+class LegacyPathsContractTest(unittest.TestCase):
+    """历史脚本的路径解析：必须显式提供，绝不回退到某个默认绝对路径"""
+
+    def setUp(self):
+        self._saved = {k: os.environ.pop(k, None)
+                       for k in ("CT_LEGACY_REGISTRY", "CT_LEGACY_PROJECT")}
+
+    def tearDown(self):
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_missing_location_raises_with_usage(self):
+        import legacy_paths
+
+        with self.assertRaises(legacy_paths.UsageError) as ctx:
+            legacy_paths.registry_path()
+        message = str(ctx.exception)
+        self.assertIn("CT_LEGACY_PROJECT", message)
+        self.assertIn("--registry", message)
+
+    def test_env_variable_resolves_relative_registry(self):
+        import legacy_paths
+
+        os.environ["CT_LEGACY_PROJECT"] = str(REPO_ROOT)
+        expected = REPO_ROOT / legacy_paths.REGISTRY_RELATIVE
+        self.assertEqual(legacy_paths.registry_path(must_exist=False), expected)
+
+    def test_explicit_ct_dir_implies_registry_location(self):
+        """给了 --ct-dir 就不该再要求重复给出注册表路径"""
+        import legacy_paths
+
+        expected = REPO_ROOT / legacy_paths.REGISTRY_RELATIVE
+        self.assertEqual(
+            legacy_paths.registry_path(ct_dir=REPO_ROOT, must_exist=False), expected)
+
+    def test_missing_registry_file_is_reported(self):
+        import legacy_paths
+
+        with self.assertRaises(legacy_paths.UsageError):
+            legacy_paths.registry_path(str(REPO_ROOT / "no_such_registry.json"))
 
 
 if __name__ == "__main__":
