@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 文档基线守卫需要完整历史做祖先校验
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -25,7 +27,14 @@ jobs:
         run: python -m compileall -q skills scripts tests conftest.py
 
       - name: Full test suite
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q 2>&1 | tee /tmp/ct-pytest.log
+          TEST_COUNT=$(grep -oE '[0-9]+ passed' /tmp/ct-pytest.log | tail -1 | awk '{print $1}')
+          if [ -z "$TEST_COUNT" ]; then
+            echo "cannot parse pytest passed count from CI output" >&2
+            exit 1
+          fi
+          echo "TEST_COUNT=$TEST_COUNT" >> "$GITHUB_ENV"
 
       - name: Registry matches code (no drift, rebuild is idempotent)
         run: |
@@ -47,3 +56,8 @@ jobs:
 
       - name: Gherkin spec gate
         run: python skills/gherkin-bdd/scripts/gherkin_gate.py validate skills/gherkin-bdd/features
+
+      - name: Documentation baseline guard (governance A+)
+        run: |
+          python scripts/check_docs_baseline.py --self-test
+          python scripts/check_docs_baseline.py --test-count "$TEST_COUNT"
