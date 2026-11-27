@@ -41,6 +41,7 @@ _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache")
 _COLLIDING_MODULES = (
     "main", "framework_paths", "config", "bdd_gate",
     "capability_registry", "file_operations", "errors", "odoo_module_graph",
+    "evidence_gate",
 )
 
 

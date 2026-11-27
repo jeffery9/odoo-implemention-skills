@@ -48,6 +48,27 @@ Skill("capability-twin-orchestrator", params={
 `bdd.blocking=false` is for drafts only: it records the failure but lets analysis continue.
 Never use it to claim G2/G3 completion.
 
+### 4. Step Evidence Contract (A-level)
+A delegated step is **not** complete just because its status says `success`. Every step
+returns `evidence_contract` and stays `delegated` until evidence is submitted and validated:
+
+```python
+orch.submit_step_evidence(step=2, evidence={
+    "workflow_id": orch.workflow_id,
+    "step": 2,
+    "artifacts": [{"path": "capability_twin_runs/.../report.md",
+                   "kind": "report",
+                   "anchor": "addons/account/models/account_move.py:L128"}],
+    "fde_records": [{"item": i, "result": "pass|fail|n/a", "evidence": "..."}
+                    for i in range(1, 10)],
+})
+```
+
+`evidence_gate` checks artifact existence, non-empty files, traceability anchors and the
+9-item FDE checklist. Only a `pass` report promotes the step to `success` and fills
+`fde_checkpoint.recorded=true`; a `fail` item blocks promotion. `status=completed` is
+returned only when all steps are evidence-validated.
+
 ## Best Practices
 - **Supply-Side First**: Always understand what Odoo does natively before proposing customization.
 - **Traceability**: All findings must trace back to Odoo source code (via `technical-analysis-agent`).
@@ -72,7 +93,7 @@ both layouts: repository (`<repo>/skills/<skill>/`) and installed (`<project>/.c
 Runtime artifacts always go to the workspace (`CAPABILITY_TWIN_WORKSPACE` or CWD), never into the skill tree.
 
 ## Resources
-- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter), [framework_paths.py](scripts/framework_paths.py) (path resolution)
+- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [evidence_gate.py](scripts/evidence_gate.py) (step evidence contract + validation), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter), [framework_paths.py](scripts/framework_paths.py) (path resolution)
 - **Agents**: [agents/](agents/) (18 prompt agents, shipped inside this skill)
 - **Registry**: [capability_registry.json](capability_registry.json)
 - **Methodology**: [fde-methodology/SKILL.md](../fde-methodology/SKILL.md) (9-item review checklist, output contract, anti-patterns)
