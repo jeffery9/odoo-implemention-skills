@@ -97,6 +97,18 @@ def check_static() -> list[str]:
     orchestrator = (ORCHESTRATOR / "scripts" / "main.py").read_text("utf-8")
     if '"unavailable"' not in orchestrator or "steps_environment_blocked" not in orchestrator:
         errors.append("编排器未把环境阻塞归一为 delegated 并计数")
+
+    benchmark = REPO / "scripts" / "ontology_benchmark.py"
+    if not benchmark.is_file():
+        errors.append("缺少语义价值基准脚本 ontology_benchmark.py")
+    else:
+        bench_text = benchmark.read_text("utf-8")
+        for marker in ("def run_benchmark", "framework_nodes_seen", "focus"):
+            if marker not in bench_text:
+                errors.append(f"语义基准缺少标记：{marker}")
+    ci_text = (REPO / ".github" / "workflows" / "ci.yml").read_text("utf-8")
+    if "ontology_benchmark.py" not in ci_text:
+        errors.append("CI 未接入语义价值基准")
     return errors
 
 
