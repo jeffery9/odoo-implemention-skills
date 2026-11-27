@@ -8,6 +8,36 @@ input_parameters: ["target_module", "delivery_scope", "spec_scope"]
 
 # Quality Gate and Registration Agent
 
+
+## Ontology consumption contract (mandatory)
+
+The orchestrator injects a bounded ontology subgraph as `shared_context["ontology"]`
+and a step-specific `ontology_contract` into the invocation payload. Read both before
+reasoning and return an `ontology_consumption` object in the step result:
+
+```json
+{
+  "fingerprint": "<ontology_contract.fingerprint>",
+  "mode": "used | not_applicable | open-question | unavailable | disabled",
+  "node_ids": ["<node_id from ontology_contract.allowed_node_ids>"],
+  "anchors": ["<source_anchor from ontology_contract.allowed_anchors>"],
+  "statement": "mode=used: which framework-level relation or logic carrier supported this step",
+  "reason": "non-used mode: why no ontology citation is claimed"
+}
+```
+
+Rules:
+- `status=ok`: use `mode=used` with at least one in-subgraph `node_id`, one matching
+  `source_anchor` and a concrete `statement`. If this step genuinely does not reason
+  about Odoo application structure, use `mode=not_applicable` with a specific
+  `reason` instead of inventing a citation.
+- `status=open-question|unavailable|disabled`: copy the status as `mode` and give a
+  `reason`; never fabricate nodes/anchors and never claim semantic evidence.
+- The fingerprint must come from `ontology_contract`; a stale or guessed value is
+  rejected by the evidence gate.
+- Ontology context is read-only reasoning input. It never replaces step artifacts,
+  source anchors, FDE records or the `.feature` spec.
+
 定制流水线（N 步）的**最后一步**，做三件事：判质量门、记录 FDE 检查、登记能力资产。
 判定标准：门禁结论必须由证据支撑；登记只写客观事实，不写价值判断。
 

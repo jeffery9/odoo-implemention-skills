@@ -10,8 +10,16 @@ if str(_scripts) not in sys.path:
     sys.path.insert(0, str(_scripts))
 import framework_paths
 
+def _ontology_binding(params):
+    shared = params.get("shared_context") if isinstance(params.get("shared_context"), dict) else {}
+    return {
+        "ontology_context": params.get("ontology_context") or shared.get("ontology"),
+        "ontology_contract": params.get("ontology_contract"),
+    }
+
 def main():
     if len(sys.argv) < 2: return
+    params = {}
     try:
         params = json.loads(sys.argv[1])
         target = params.get("config", {}).get("target_module") or params.get("target_module")
@@ -19,7 +27,13 @@ def main():
         source_root_str = os.environ.get("ODOO_SOURCE_PATH") or shared_context.get("odoo_source_path", "")
         
         if not source_root_str:
-            print(json.dumps({"status": "error", "message": "ODOO_SOURCE_PATH not found"}))
+            payload = {
+                "status": "unavailable",
+                "reason_code": "ODOO_SOURCE_PATH_MISSING",
+                "message": "缺少 ODOO 源码路径（环境变量或共享上下文），等待提供源码后再执行生态发现",
+            }
+            payload.update(_ontology_binding(params))
+            print(json.dumps(payload, ensure_ascii=False))
             return
         
         source_root = Path(source_root_str)
@@ -76,7 +90,7 @@ def main():
                     except:
                         continue
 
-        print(json.dumps({
+        payload = {
             "status": "success",
             "target_module": target,
             "layers": {
@@ -86,10 +100,14 @@ def main():
             },
             "source": "odoo_module_graph.py + proactive_intersection",
             "message": f"Successfully mapped {target} ecosystem using industrial graph script."
-        }, ensure_ascii=False))
+        }
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        payload = {"status": "error", "message": str(e)}
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()

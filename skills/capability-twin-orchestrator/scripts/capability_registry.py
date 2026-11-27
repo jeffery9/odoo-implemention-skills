@@ -217,9 +217,16 @@ class CapabilityRegistry:
                 "skills_granted": granted,
                 "unknown_skills": unknown,
                 "shared_context_keys": sorted((params.get("shared_context") or {}).keys()),
+                # prompt agent 只拿到指令对象；若这里不下发本体子图，
+                # AGENT.md 里写得再完整也无法真正消费 shared_context。
+                "ontology_context": (params.get("shared_context") or {}).get("ontology"),
+                "ontology_contract": params.get("ontology_contract"),
                 "workflow_id": params.get("workflow_id"),
                 "execution_contract": (
                     "执行前先加载 skills_granted 中每个技能的 SKILL.md 并遵守其约束；"
+                    "必须阅读 ontology_context 并按 ontology_contract 输出 ontology_consumption："
+                    "status=ok 且确实引用本体时用 mode=used 给出子图内 node_id/source_anchor 和 statement，"
+                    "确不适用时用 mode=not_applicable 给出理由，其余状态如实确认；"
                     "仅在产出物满足这些技能的检查清单后才可声明本步骤成功；"
                     "无法完成时报 error 并写明缺失的输入或证据，不得返回成功空结果。"
                 ),

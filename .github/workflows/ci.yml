@@ -54,6 +54,12 @@ jobs:
       - name: Ontology builder self-test
         run: python scripts/build_ontology.py --self-test
 
+      - name: Ontology consumption guard (AGENT + evidence gate wiring)
+        run: python scripts/check_ontology_contract.py --self-test
+
+      - name: Ontology semantic benchmark (fixture, deterministic)
+        run: python scripts/ontology_benchmark.py --out /tmp/ontology-benchmark.json
+
       - name: Ontology manifest guard (explicit skip when source absent)
         run: python scripts/check_ontology.py --manifest ontology/manifest.json --out /tmp/ontology-rebuilt
 

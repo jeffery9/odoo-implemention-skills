@@ -10,8 +10,16 @@ if str(_scripts) not in sys.path:
     sys.path.insert(0, str(_scripts))
 import framework_paths
 
+def _ontology_binding(params):
+    shared = params.get("shared_context") if isinstance(params.get("shared_context"), dict) else {}
+    return {
+        "ontology_context": params.get("ontology_context") or shared.get("ontology"),
+        "ontology_contract": params.get("ontology_contract"),
+    }
+
 def main():
     if len(sys.argv) < 2: return
+    params = {}
     try:
         params = json.loads(sys.argv[1])
         target = params.get("target_module") or params.get("config", {}).get("target_module")
@@ -19,7 +27,9 @@ def main():
         full_markdown_content = params.get("full_markdown_content") or params.get("config", {}).get("full_markdown_content")
         
         if not full_markdown_content:
-            print(json.dumps({"status": "error", "message": "No content provided by LLM brain."}))
+            payload = {"status": "error", "message": "No content provided by LLM brain."}
+            payload.update(_ontology_binding(params))
+            print(json.dumps(payload, ensure_ascii=False))
             return
 
         # 纯 I/O 职责：物理落地到用户工作区，而非技能包所在目录
@@ -29,13 +39,17 @@ def main():
         
         output_path.write_text(full_markdown_content, encoding='utf-8')
 
-        print(json.dumps({
-            "status": "success", 
+        payload = {
+            "status": "success",
             "message": f"I/O successfully performed. Masterpiece written to {output_path.name}"
-        }, ensure_ascii=False))
+        }
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        payload = {"status": "error", "message": str(e)}
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()

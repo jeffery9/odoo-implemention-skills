@@ -321,8 +321,10 @@ class CapabilityTwinOrchestratorSkill:
         result["evidence"] = {
             "artifacts": report.get("artifacts", []),
             "fde_records": report.get("fde_records", []),
+            "ontology_consumption": report.get("ontology_consumption", {}),
             "submitted_at": report.get("validated_at"),
         }
+        result["ontology_consumption"] = report.get("ontology_consumption", {})
         checkpoint = result.get("fde_checkpoint")
         if isinstance(checkpoint, dict) and report["status"] == "pass":
             checkpoint["recorded"] = True
@@ -333,7 +335,9 @@ class CapabilityTwinOrchestratorSkill:
                 result["status"] = "success"
         else:
             # 证据不足不得把原状态改写成成功；失败状态也不被证据覆盖。
-            if result.get("status") not in self.FAILED_STATUSES:
+            # unavailable 表示外部输入未就绪，保留它以便汇聚时如实计数。
+            if (result.get("status") not in self.FAILED_STATUSES
+                    and result.get("status") != "unavailable"):
                 result["status"] = "delegated"
 
         if entry["name"]:
@@ -1460,6 +1464,11 @@ class CapabilityTwinOrchestratorSkill:
         workflow loops pass them to register the evidence contract.
         """
         try:
+            # 本体消费闭环：把「本步骤看到的子图」与「必须如何交代消费」一起下发，
+            # 语义执行者不能只收到 shared_context 的键名却对本体保持沉默。
+            ontology_binding = ontology_context.consumption_contract(
+                self.shared_context.get("ontology"))
+
             # Prepare parameters for the sub-agent execution
             subagent_params = {
                 "target_module": config.get("target_module", "{target_module}"),
@@ -1467,6 +1476,7 @@ class CapabilityTwinOrchestratorSkill:
                 "skills_granted": skills_granted,
                 "config": config,
                 "shared_context": self.shared_context,
+                "ontology_contract": ontology_binding,
                 "workflow_id": self.workflow_id
             }
 
@@ -1488,16 +1498,21 @@ class CapabilityTwinOrchestratorSkill:
             # 否则下游无法判断本步骤受哪些约束、是否挂了 FDE 检查点。
             if isinstance(result, dict):
                 result.setdefault("skills_granted", list(skills_granted))
+                result["ontology_contract"] = ontology_binding
                 result["evidence_contract"] = evidence_gate.build_contract(
                     {"step": step, "name": step_name or "", "agent_type": agent_type},
-                    skills_granted, self.workflow_id)
+                    skills_granted, self.workflow_id, ontology=ontology_binding)
                 result["evidence_validation"] = {
                     "status": "pending",
                     "issues": ["尚未提交步骤证据"],
                 }
+                result["ontology_consumption"] = {
+                    "status": "pending",
+                    "issues": ["尚未提交本体消费记录"],
+                }
                 result["evidence_submission"] = (
-                    "调用 submit_step_evidence(step, evidence) 提交 artifacts 与 "
-                    "fde_records；校验通过前本步骤不得声明成功。")
+                    "调用 submit_step_evidence(step, evidence) 提交 artifacts、"
+                    "fde_records 与 ontology_consumption；校验通过前本步骤不得声明成功。")
                 if "fde-methodology" in skills_granted:
                     result["fde_checkpoint"] = {
                         "required": True,
@@ -1601,10 +1616,16 @@ class CapabilityTwinOrchestratorSkill:
         }
 
     # 子步骤状态归一化：只有「证据校验通过的 success」才算本步骤完成。
-    # delegated 表示指令已下发或证据待提交，它不等于完成；failed 表示执行失败。
-    DELEGATED_STATUSES = {"pending_instruction", "semantic_wait", "delegated", "missing"}
+    # delegated 表示指令已下发、证据待提交或外部输入未就绪（unavailable），不等于完成；
+    # failed 表示执行本身失败。环境缺源码等外部阻塞属于等待，不冒充失败也不冒充成功。
+    DELEGATED_STATUSES = {
+        "pending_instruction", "semantic_wait", "delegated", "missing", "unavailable",
+    }
     FAILED_STATUSES = {"error", "failed", "unsupported"}
     SUCCESS_STATUSES = {"success", "completed", "ok", "pass"}
+    ENV_BLOCKED_REASON_CODES = {
+        "ODOO_SOURCE_PATH_MISSING", "TARGET_MODULE_NOT_FOUND",
+    }
 
     def _normalize_step_status(self, status: str, result: Optional[Dict[str, Any]] = None) -> str:
         """把子代理状态归一到 success / delegated / failed（证据优先于状态）。"""
@@ -1639,11 +1660,36 @@ class CapabilityTwinOrchestratorSkill:
         if results is None or self.step_registry:
             results = self._results_from_registry()
         counts = {"success": 0, "delegated": 0, "failed": 0}
+        env_blocked = 0
+        ontology_closure = {
+            "required_steps": 0,
+            "validated": 0,
+            "pending": 0,
+            **{mode: 0 for mode in ontology_context.CONSUMPTION_MODES},
+        }
         for item in results or []:
             if item.get("step") is None:
                 continue
             result = item.get("result") or {}
             counts[self._normalize_step_status(result.get("status", ""), result)] += 1
+            if (result.get("status") == "unavailable" or
+                    result.get("reason_code") in self.ENV_BLOCKED_REASON_CODES):
+                env_blocked += 1
+
+            contract = result.get("evidence_contract") or {}
+            binding = contract.get("ontology") or {}
+            if not binding.get("required", False):
+                continue
+            ontology_closure["required_steps"] += 1
+            record = result.get("ontology_consumption") or {}
+            validation = result.get("evidence_validation") or {}
+            if record.get("status") == "pass" and validation.get("status") == "pass":
+                ontology_closure["validated"] += 1
+                mode = record.get("mode")
+                if mode in ontology_closure:
+                    ontology_closure[mode] += 1
+            else:
+                ontology_closure["pending"] += 1
 
         total = sum(counts.values())
         if total and counts["success"] == total:
@@ -1661,6 +1707,8 @@ class CapabilityTwinOrchestratorSkill:
             "steps_completed": counts["success"],
             "steps_delegated": counts["delegated"],
             "steps_failed": counts["failed"],
+            "steps_environment_blocked": env_blocked,
+            "ontology_consumption": ontology_closure,
             "requires_semantic_execution": (
                 counts["delegated"] > 0 or status == "delegated"),
         }

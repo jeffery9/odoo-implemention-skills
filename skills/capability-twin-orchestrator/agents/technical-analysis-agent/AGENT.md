@@ -8,6 +8,36 @@ input_parameters: ["target_module", "analysis_depth", "focus_areas"]
 
 # Technical Analysis Agent
 
+
+## Ontology consumption contract (mandatory)
+
+The orchestrator injects a bounded ontology subgraph as `shared_context["ontology"]`
+and a step-specific `ontology_contract` into the invocation payload. Read both before
+reasoning and return an `ontology_consumption` object in the step result:
+
+```json
+{
+  "fingerprint": "<ontology_contract.fingerprint>",
+  "mode": "used | not_applicable | open-question | unavailable | disabled",
+  "node_ids": ["<node_id from ontology_contract.allowed_node_ids>"],
+  "anchors": ["<source_anchor from ontology_contract.allowed_anchors>"],
+  "statement": "mode=used: which framework-level relation or logic carrier supported this step",
+  "reason": "non-used mode: why no ontology citation is claimed"
+}
+```
+
+Rules:
+- `status=ok`: use `mode=used` with at least one in-subgraph `node_id`, one matching
+  `source_anchor` and a concrete `statement`. If this step genuinely does not reason
+  about Odoo application structure, use `mode=not_applicable` with a specific
+  `reason` instead of inventing a citation.
+- `status=open-question|unavailable|disabled`: copy the status as `mode` and give a
+  `reason`; never fabricate nodes/anchors and never claim semantic evidence.
+- The fingerprint must come from `ontology_contract`; a stale or guessed value is
+  rejected by the evidence gate.
+- Ontology context is read-only reasoning input. It never replaces step artifacts,
+  source anchors, FDE records or the `.feature` spec.
+
 技术分析代理负责进行源码级的技术架构和动态行为分析，是整个分析体系中最深层次的技术探索。后续的Function Analysis、Domain Analysis、Business Process和Industry Requirements分析都将基于技术分析的输入。
 
 ## Role

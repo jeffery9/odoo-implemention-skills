@@ -451,8 +451,11 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 | 位置 | 行为 |
 |---|---|
 | `execute_workflow` preflight 之后 | 调用 `_ontology_context()`，写入 `shared_context["ontology"]` |
-| `execute_subagent` | 既有 `shared_context` 透传，所有子代理自动拿到同一子图 |
-| `render_deliverables_bundle` | 结果附 `ontology_context` 指纹，交付物可回溯锚点 |
+| `execute_subagent` | 既有 `shared_context` 透传，并下发步骤级 `ontology_contract`；所有子代理拿到同一子图与消费要求 |
+| `capability_registry` | prompt agent 指令中直接附带 `ontology_context` 与 `ontology_contract`，不再只给 `shared_context_keys` |
+| `agents/*/main.py` | 带 Python 入口的 8 个 agent 同样把 `ontology_context` / `ontology_contract` 透传到 `instructions` 同级，避免只给 AGENT.md 文本却拿不到指纹 |
+| `evidence_gate` | 校验 `ontology_consumption` 的指纹、mode、node_id、anchor 与说明/理由 |
+| `render_deliverables_bundle` | 结果附 `ontology_context` 指纹；完整锚点仍在 `shared_context["ontology"]`。交付物正文的 `source_anchor` 由语义执行者按步骤证据填写，本体不冒充交付物证据 |
 | `framework_paths` | 新增 `ontology_dir()` / `ontology_scripts_dir()`，路径不依赖 CWD |
 
 本体的 status **不参与** BDD 门禁判定、不改变 workflow status、不新增阶段编号。
@@ -479,7 +482,72 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 ### 12.4 不变量
 
 - 不填充 `capabilities: {}`，GAP-007 锁定不变；
-- 不新增 pytest 用例，CI 基线保持 `265 passed`；集成检查折进
-  `build_ontology.py --self-test` 的 CI 步骤；
-- 本体子图只是推理输入，不替代步骤证据、FDE 记录或源码锚点；
+- 不新增 pytest 用例，全量测试数仍以 `docs/项目维护指南.md` §1 为唯一事实源；
+  集成检查折进 CI 的 `build_ontology.py --self-test` 与
+  `check_ontology_contract.py --self-test` 步骤；
+- 本体子图只是推理输入，不替代步骤证据、FDE 记录或源码锚点；但它的**消费记录**
+  `ontology_consumption` 是步骤证据的一部分，缺失即 `delegated`；
 - `ontology/` 仍是派生产物，禁止手改，哈希守卫不变。
+
+### 12.5 消费闭环（BD-02 收口）
+
+`shared_context["ontology"]` 可达只解决“AI 能看到”。要证明“AI 确实在用”，
+编排器在每次委派时同时给出 `ontology_contract`：
+
+| 字段 | 作用 |
+|---|---|
+| `required` / `status` | 步骤必须交代消费；mode 必须与当前本体状态一致 |
+| `fingerprint` | 绑定本步骤实际看到的子图，过期或猜测值直接拒绝 |
+| `allowed_modes` | `ok` → `used` / `not_applicable`；其余状态 → 同名 mode |
+| `allowed_node_ids` / `allowed_anchors` | `used` 只能引用子图内节点与物理锚点 |
+
+提交证据时 `evidence_gate` 同时校验 artifacts、FDE 与本体消费记录：
+`used` 必须给出子图内 `node_ids`、匹配 `source_anchors` 和具体 `statement`；
+确不适用时用 `not_applicable` 写明理由；`open-question` / `unavailable` /
+`disabled` 如实确认，不得伪造节点。任何失败都保持步骤 `delegated`，不得 `success`。
+
+`workflow_outcome.ontology_consumption` 汇总 `required_steps / validated / pending`
+及各 mode 计数。CI 的 `scripts/check_ontology_contract.py --self-test` 静态确认
+18 个 AGENT.md 与编排器接线，并功能验证“缺记录 / 过期指纹 / 伪造节点”全部拒绝。
+
+### 12.6 规格对齐与环境阻塞语义
+
+消费契约的行为规格落在
+`skills/gherkin-bdd/features/framework/ontology_consumption.feature`（5 个场景，
+覆盖 `used` / `not_applicable` / 越界引用 / 版本漂移 / `unavailable` 如实确认）。
+`check_ontology_contract.py` 会解析该规格并校验场景 ID 齐全，规格被删除或改坏时
+守卫失败——规格层与实现层不再各自漂移。
+
+缺少 `ODOO_SOURCE_PATH` 或目标模块属于**外部输入未就绪**，两个源码型代理
+（`ecosystem-discovery-agent` / `technical-analysis-agent`）返回
+`status=unavailable` + `reason_code`，而不是 `error`。编排器将 `unavailable`
+归一为 `delegated`（等待，不计失败），并在汇聚结果里用
+`steps_environment_blocked` 单独计数。这样既不会把“未执行”误报成“执行失败”，
+也不会冒充已完成的语义证据；`requires_semantic_execution` 仍为 true。
+
+### 12.7 语义价值基准（可复现，不冒充推理质量证明）
+
+`scripts/ontology_benchmark.py` 用 fixture 走**同一条生产构建 / 查询 / 上下文适配
+路径**，CI 每跑必执行，输出可复现 JSON。它度量的不是“AI 更聪明”，而是本体作为
+推理输入的客观属性：
+
+| 维度 | 判据 | fixture 基线 |
+|---|---|---|
+| 聚焦 | 范围查询返回节点数 < 全图节点数 | 19 → 4–11 |
+| 覆盖 | 7 类框架级对象 + 3 类逻辑载体全部召回 | 7/7、6/6、python/view/owl |
+| 追溯 | 每个返回节点都有物理锚点 | 19/19 |
+| 诚实 | 未构建 → `unavailable`，未知模块 → `open-question` | 均成立 |
+| 消费闭环 | 真实本体 `ok` 下合法 `used` 记录放行、伪造节点被拒 | pass / fail |
+| 升级门禁 | 合法记录升级为 `success`；伪造节点与缺失记录保持 `delegated` | 3/3 符合 |
+
+注意：`payload_to_source_ratio` 实测约 3.265，**不是文本压缩率**。本体子图比源码原文
+更大，因为它携带边、证据分级和逻辑条件；有用的性质是“范围查询把全图收窄到可消费的
+子集”，而不是“字节更少”。
+
+基准还端到端验证消费闭环：真实 fixture 本体（`status=ok`）下，步骤契约允许
+`used`，一份引用子图内节点与锚点的合法 `used` 记录通过 `evidence_gate`，把节点换成
+子图外伪造 ID 则被拒。在此基础上还实跑编排器的 `submit_step_evidence` 状态机：
+合法 `used` 使步骤升级为 `success`，伪造节点与缺失消费记录均保持 `delegated`，
+且只记录状态字段以保证报告逐字节可复现。这收口了“`used` 模式只在单元自测里验证”
+以及“门禁放行是否真的转化为步骤升级”两个边界，但仍不等于真实语义任务的回答质量
+提升——后者需要真实 Odoo 源码上的对照实验，本基准不构成该结论的证据。

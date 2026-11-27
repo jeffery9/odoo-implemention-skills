@@ -107,9 +107,22 @@ Skill("capability-twin-orchestrator", params={
   Build it with `python scripts/build_ontology.py --source "$ODOO_SOURCE_PATH" --out ontology`.
 - `status: disabled` — only via explicit `ontology.enabled=false` (draft use).
 
-The ontology never satisfies step evidence and never changes workflow status; it only
-reduces the source exploration AI has to do. The result contains `ontology_context` as a
-fingerprint, while the full subgraph remains in `final_shared_context["ontology"]`.
+The graph never satisfies step evidence and never changes workflow status; it only
+reduces the source exploration AI has to do. Its **usage does** become evidence:
+each delegated step receives `ontology_contract` and must submit `ontology_consumption`
+with the same `fingerprint`.
+
+| Context status | Required `mode` | Proof in the step evidence |
+|---|---|---|
+| `ok` | `used` | in-subgraph `node_ids` + matching `source_anchors` + concrete `statement` |
+| `ok` (genuinely irrelevant step) | `not_applicable` | specific `reason`, no fabricated citation |
+| `open-question` / `unavailable` / `disabled` | same value | specific `reason`, no fabricated node |
+
+A missing, stale or fabricated record fails the evidence gate and keeps the step
+`delegated`. `workflow_outcome.ontology_consumption` exposes required / validated /
+pending counts and per-mode counts, so a run cannot claim semantic usage on reachability
+alone. The result contains `ontology_context` as a fingerprint, while the full subgraph
+remains in `final_shared_context["ontology"]`.
 
 ## Common Use Cases
 
