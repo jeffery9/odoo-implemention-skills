@@ -136,6 +136,36 @@ def agents_dir() -> Path:
     return SKILL_ROOT / "agents"
 
 
+def ontology_dir(required: bool = False) -> Optional[Path]:
+    """
+    本体产物目录（`<framework_root>/ontology`）。
+
+    本体是仓库级派生产物，不属于任何技能包：仓库布局可用；`npx skills add --all`
+    的 copy 安装可能不含它。此时返回 None（或 required=True 时给出安装提示），
+    绝不回退到别处"碰巧存在"的目录——否则会把未构建的本体当成事实源。
+    """
+    candidate = FRAMEWORK_ROOT / "ontology"
+    if (candidate / "manifest.json").is_file():
+        return candidate
+    if required:
+        raise SkillNotFound(
+            f"本体产物目录不存在或未构建：`{candidate}/manifest.json`。"
+            f"在仓库根运行 `python scripts/build_ontology.py --source \"$ODOO_SOURCE_PATH\" --out ontology`。"
+        )
+    return None
+
+
+def ontology_scripts_dir() -> Path:
+    """本体构建/查询脚本目录（仓库级，不随技能包分发）。"""
+    scripts = FRAMEWORK_ROOT / "scripts"
+    if (scripts / "ontology_lookup.py").is_file():
+        return scripts
+    raise SkillNotFound(
+        f"本体查询脚本缺失：`{scripts}/ontology_lookup.py`。"
+        f"本体集成需要仓库布局或包含 scripts/ 的完整安装；当前不可用。"
+    )
+
+
 def registry_path() -> Path:
     """能力注册表文件，随 orchestrator 技能一起分发。"""
     return SKILL_ROOT / "capability_registry.json"
@@ -191,6 +221,8 @@ def diagnostics() -> Dict[str, object]:
         "agents": str(agents_dir()),
         "registry": str(registry_path()),
         "run_dir": str(default_run_dir()),
+        "ontology": str(ontology_dir() or "<unbuilt>"),
+        "ontology_scripts": str(SKILLS_ROOT.parent / "scripts"),
     }
 
 

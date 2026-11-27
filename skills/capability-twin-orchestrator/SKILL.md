@@ -32,6 +32,12 @@ Skill("capability-twin-orchestrator", params={
         "blocking": True,
         "features_dir": "skills/gherkin-bdd/features",
         "output_dir": "capability_twin_runs/bdd"
+    },
+    "ontology": {                     # optional; enabled by default
+        "enabled": True,
+        "hops": 1,                    # subgraph expansion depth
+        "max_nodes": 40,              # bounded context, not the whole graph
+        "carrier": None               # python | view | owl
     }
 })
 ```
@@ -81,6 +87,35 @@ created, and the step stays `delegated`.
 `fde_checkpoint.recorded=true`; a `fail` item blocks promotion. `status=completed` is
 returned only when all steps are evidence-validated.
 
+## 5. Ontology Context Layer (read-only)
+
+The orchestrator attaches an **anchored semantic subgraph** to `shared_context["ontology"]`
+during preflight, before any sub-agent runs. Every sub-agent therefore reasons from the same
+bounded view of the Odoo application (models, fields, views, actions, menus, groups, rules,
+ACLs and Python/View/OWL logic) instead of rediscovering it from scattered sources.
+
+| Field | Meaning |
+|---|---|
+| `status` | `ok` / `open-question` / `unavailable` / `disabled`; never silently empty |
+| `subgraph.nodes` | Nodes with physical `source_anchor`; truncated to `ontology.max_nodes` |
+| `subgraph.edges` | Only edges whose both endpoints survive truncation |
+| `anchors` | Sorted `file:line` / `file:record:xmlid` anchors for citation |
+| `open_questions` | Unresolved bindings or "ontology not built"; never fabricated |
+| `consumption` | `read-only reasoning context; not step evidence` |
+
+Rules:
+
+- The ontology is a **derived projection** (`ontology/`), not a second source of truth.
+  It does not fill `capabilities: {}` and does not replace `.feature` or source anchors.
+- No manifest or no query script ⇒ `status=unavailable` + `open-question`. An unbuilt
+  ontology is **not** an empty green graph.
+- Explicit `ontology.enabled=false` is the only way to disable it; drafts must say so.
+- `ontology_context` is reasoning input only. It never promotes a step, never satisfies
+  evidence gate checks and never changes workflow `status`.
+
+The result carries `ontology_context` (a small fingerprint); the full subgraph stays in
+`final_shared_context["ontology"]`.
+
 ## Best Practices
 - **Supply-Side First**: Always understand what Odoo does natively before proposing customization.
 - **Traceability**: All findings must trace back to Odoo source code (via `technical-analysis-agent`).
@@ -105,7 +140,8 @@ both layouts: repository (`<repo>/skills/<skill>/`) and installed (`<project>/.c
 Runtime artifacts always go to the workspace (`CAPABILITY_TWIN_WORKSPACE` or CWD), never into the skill tree.
 
 ## Resources
-- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [evidence_gate.py](scripts/evidence_gate.py) (step evidence contract + validation), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter), [framework_paths.py](scripts/framework_paths.py) (path resolution)
+- **Scripts**: [main.py](scripts/main.py) (Orchestration logic), [evidence_gate.py](scripts/evidence_gate.py) (step evidence contract + validation), [bdd_gate.py](scripts/bdd_gate.py) (Gherkin spec gate adapter), [ontology_context.py](scripts/ontology_context.py) (bounded ontology subgraph adapter), [framework_paths.py](scripts/framework_paths.py) (path resolution)
+- **Ontology**: `ontology/` at framework root is a generated, do-not-edit projection; query it with `python scripts/ontology_lookup.py --module <module>`
 - **Agents**: [agents/](agents/) (18 prompt agents, shipped inside this skill)
 - **Registry**: [capability_registry.json](capability_registry.json)
 - **Methodology**: [fde-methodology/SKILL.md](../fde-methodology/SKILL.md) (9-item review checklist, output contract, anti-patterns)
