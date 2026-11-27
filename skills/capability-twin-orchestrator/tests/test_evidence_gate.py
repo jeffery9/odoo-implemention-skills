@@ -154,6 +154,55 @@ class OrchestratorEvidenceTests(unittest.TestCase):
         report = self.orch.submit_step_evidence(99, self.evidence)
         self.assertEqual(report["status"], "error")
 
+    def test_registry_survives_new_instance_and_closes_step(self):
+        wid = self.orch.workflow_id
+        self.assertIsNotNone(self.orch.persist_step_registry())
+        resumed = ct_main.CapabilityTwinOrchestratorSkill(
+            config=ct_main.CapabilityTwinConfig(output_directory=str(self.tmp / "runs")))
+        self.assertTrue(resumed.restore_step_registry(wid))
+        self.assertEqual(resumed._workflow_outcome()["status"], "delegated")
+        report = resumed.submit_step_evidence(2, self.evidence)
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["workflow_outcome"]["status"], "completed")
+
+    def test_corrupt_registry_fails_closed(self):
+        wid = self.orch.workflow_id
+        path = self.tmp / "runs" / wid / eg.STORE_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not json", encoding="utf-8")
+        resumed = ct_main.CapabilityTwinOrchestratorSkill(
+            config=ct_main.CapabilityTwinConfig(output_directory=str(self.tmp / "runs")))
+        self.assertFalse(resumed.restore_step_registry(wid))
+        self.assertEqual(resumed._workflow_outcome()["status"], "failed")
+
+    def test_public_entry_submits_evidence(self):
+        wid = self.orch.workflow_id
+        self.assertIsNotNone(self.orch.persist_step_registry())
+        real_config = ct_main.CapabilityTwinConfig
+        ct_main.CapabilityTwinConfig = lambda: real_config(
+            output_directory=str(self.tmp / "runs"))
+        try:
+            report = ct_main.execute_skill({
+                "operation": "submit_step_evidence",
+                "workflow_id": wid,
+                "step": 2,
+                "evidence": self.evidence,
+            })
+            self.assertEqual(report["status"], "pass")
+            self.assertEqual(report["workflow_outcome"]["status"], "completed")
+            outcome = ct_main.execute_skill({
+                "operation": "workflow_outcome", "workflow_id": wid})
+            self.assertEqual(outcome["status"], "completed")
+            self.assertEqual(outcome["steps_completed"], 1)
+        finally:
+            ct_main.CapabilityTwinConfig = real_config
+
+    def test_public_entry_rejects_workflow_id_traversal(self):
+        for bad in ("../etc", "/tmp/x", "", None, "a/b"):
+            report = ct_main.execute_skill({
+                "operation": "workflow_outcome", "workflow_id": bad})
+            self.assertEqual(report["status"], "error", bad)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

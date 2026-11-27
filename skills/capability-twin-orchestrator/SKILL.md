@@ -53,16 +53,28 @@ A delegated step is **not** complete just because its status says `success`. Eve
 returns `evidence_contract` and stays `delegated` until evidence is submitted and validated:
 
 ```python
-orch.submit_step_evidence(step=2, evidence={
-    "workflow_id": orch.workflow_id,
+execute_skill({
+    "operation": "submit_step_evidence",
+    "workflow_id": "<from workflow result>",
     "step": 2,
-    "artifacts": [{"path": "capability_twin_runs/.../report.md",
-                   "kind": "report",
-                   "anchor": "addons/account/models/account_move.py:L128"}],
-    "fde_records": [{"item": i, "result": "pass|fail|n/a", "evidence": "..."}
-                    for i in range(1, 10)],
+    "evidence": {
+        "workflow_id": "<same workflow_id>",
+        "step": 2,
+        "artifacts": [{"path": "capability_twin_runs/.../report.md",
+                       "kind": "report",
+                       "anchor": "addons/account/models/account_move.py:L128"}],
+        "fde_records": [{"item": i, "result": "pass|fail|n/a", "evidence": "..."}
+                        for i in range(1, 10)],
+    },
 })
 ```
+
+The workflow result carries `step_registry` (path under `capability_twin_runs/<workflow_id>/`)
+and `evidence_submission_hint`. Step registration is persisted at workflow finalization and
+restored by `workflow_id` on a new instance — the host does **not** need to keep the original
+process alive. `operation=workflow_outcome` with the same `workflow_id` re-reads the current
+outcome. A missing, corrupt or out-of-bounds registry fails closed: no empty registry is
+created, and the step stays `delegated`.
 
 `evidence_gate` checks artifact existence, non-empty files, traceability anchors and the
 9-item FDE checklist. Only a `pass` report promotes the step to `success` and fills

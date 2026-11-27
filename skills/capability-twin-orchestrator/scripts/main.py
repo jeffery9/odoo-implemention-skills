@@ -255,6 +255,40 @@ class CapabilityTwinOrchestratorSkill:
         }
         self.step_aliases[name] = key
 
+    def persist_step_registry(self) -> Optional[str]:
+        """持久化步骤登记到运行目录；失败返回 None，由调用方决定语义。"""
+        try:
+            path = evidence_gate.save_step_registry(
+                self.config.get_output_path(), self.workflow_id,
+                self.step_registry, self.step_aliases, self.evidence_base_dir)
+            return str(path)
+        except evidence_gate.EvidenceStoreError as exc:
+            logger.error(f"步骤登记持久化失败：{exc}")
+            return None
+
+    def restore_step_registry(self, workflow_id: str) -> bool:
+        """从运行目录恢复步骤登记；任何异常均 fail-closed。"""
+        if not evidence_gate.valid_workflow_id(workflow_id):
+            logger.error(f"拒绝恢复步骤登记：非法 workflow_id {workflow_id!r}")
+            return False
+        try:
+            data = evidence_gate.load_step_registry(
+                self.config.get_output_path(), workflow_id)
+        except evidence_gate.EvidenceStoreError as exc:
+            logger.error(f"步骤登记恢复失败：{exc}")
+            return False
+        self.workflow_id = workflow_id
+        self.step_registry = data["step_registry"]
+        self.step_aliases = data["step_aliases"]
+        base = data.get("evidence_base_dir")
+        if isinstance(base, str) and Path(base).is_dir():
+            self.evidence_base_dir = Path(base)
+        # 保持公开结果与内部登记一致，避免 outcome 与 subagent_results 分叉。
+        for entry in self.step_registry.values():
+            if entry.get("name"):
+                self.subagent_results[entry["name"]] = entry["result"]
+        return True
+
     def _results_from_registry(self) -> List[Dict[str, Any]]:
         return [
             {"step": data["step"], "name": data["name"], "result": data["result"]}
@@ -303,11 +337,25 @@ class CapabilityTwinOrchestratorSkill:
 
         if entry["name"]:
             self.subagent_results[entry["name"]] = result
+
+        # 跨调用入口的登记必须落盘；持久化失败不得让调用方拿到假完成。
+        stored_at = self.persist_step_registry()
+        if stored_at is None:
+            result["status"] = "delegated"
+            return {
+                "status": "error",
+                "error": "证据校验完成但步骤登记无法持久化，状态保持 delegated",
+                "step": entry["step"],
+                "name": entry["name"],
+                "evidence_gate": report,
+                "workflow_outcome": self._workflow_outcome(),
+            }
         return {
             "status": report["status"],
             "step": entry["step"],
             "name": entry["name"],
             "evidence_gate": report,
+            "step_registry": stored_at,
             "workflow_outcome": self._workflow_outcome(),
         }
 
@@ -533,6 +581,18 @@ class CapabilityTwinOrchestratorSkill:
             result["final_shared_context"] = self.shared_context
             result["workflow_history"] = self.workflow_history
             result.setdefault("bdd_gate", self.shared_context.get("bdd_gate", {}))
+
+            # 证据回填要在后续调用中完成，步骤登记必须落盘；持久化失败按失败处理，
+            # 不得返回一个无法被证据闭环的 workflow_id。
+            stored_at = self.persist_step_registry()
+            if stored_at is None:
+                result["status"] = "error"
+                result["error"] = "步骤登记持久化失败，证据回填不可用"
+                return result
+            result["step_registry"] = stored_at
+            result["evidence_submission_hint"] = (
+                "execute_skill(operation='submit_step_evidence', workflow_id=..., "
+                "step=..., evidence={...})")
 
             logger.info(f"Completed Capability Twin workflow: {self.workflow_id}")
             return result
@@ -1535,6 +1595,32 @@ def execute_skill(skill_params: Dict[str, Any]) -> Dict[str, Any]:
         if skill_params.get("operation") in ("render_deliverables_bundle", "render_deliverable"):
             banner = CapabilityTwinOrchestratorSkill(config=CapabilityTwinConfig())
             return banner.render_deliverables_bundle(skill_params)
+
+        # 跨调用证据闭环：宿主通过公开入口恢复上一次运行的步骤登记并提交证据。
+        # 每个 operation 独立实例化，登记从运行目录恢复，不依赖进程内状态。
+        operation = skill_params.get("operation")
+        if operation in ("submit_step_evidence", "workflow_outcome"):
+            wid = skill_params.get("workflow_id")
+            if not evidence_gate.valid_workflow_id(wid):
+                return {
+                    "status": "error",
+                    "error": f"非法或缺失 workflow_id：{wid!r}",
+                }
+            session = CapabilityTwinOrchestratorSkill(config=CapabilityTwinConfig())
+            if not session.restore_step_registry(wid):
+                return {
+                    "status": "error",
+                    "error": "步骤登记不存在、损坏或越界；已 fail-closed，不创建空登记",
+                    "workflow_id": wid,
+                }
+            if operation == "workflow_outcome":
+                outcome = session._workflow_outcome()
+                outcome["workflow_id"] = wid
+                return outcome
+            return session.submit_step_evidence(
+                skill_params.get("step"),
+                skill_params.get("evidence") or {},
+                name=skill_params.get("name"))
 
         # Check if we need to perform intent analysis first
         # If the user provided a natural language request without structured parameters

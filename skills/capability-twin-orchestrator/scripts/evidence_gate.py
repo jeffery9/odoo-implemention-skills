@@ -14,12 +14,87 @@ it only validates the evidence submitted for a step.
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 FDE_ITEMS: tuple = tuple(range(1, 10))
 FDE_RESULTS = {"pass", "fail", "n/a"}
+
+# 跨调用持久化：step registry 必须能在新的编排器实例中恢复，
+# 否则宿主无法从技能公开入口为上一次运行的步骤回填证据。
+STORE_SCHEMA = "1.0"
+STORE_FILENAME = "step_registry.json"
+MAX_STORE_BYTES = 5_000_000
+WORKFLOW_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+class EvidenceStoreError(Exception):
+    """步骤登记不可用；一律 fail-closed，不得降级为空登记。"""
+
+
+def valid_workflow_id(value: Any) -> bool:
+    """防止 workflow_id 被用作路径穿越载荷。"""
+    return isinstance(value, str) and bool(WORKFLOW_ID_RE.fullmatch(value))
+
+
+def store_path(base_dir: Path, workflow_id: str) -> Path:
+    if not valid_workflow_id(workflow_id):
+        raise EvidenceStoreError(f"非法 workflow_id：{workflow_id!r}")
+    base = Path(base_dir).resolve()
+    path = (base / workflow_id / STORE_FILENAME).resolve()
+    try:
+        path.relative_to(base)
+    except ValueError as exc:
+        raise EvidenceStoreError("步骤登记路径越界") from exc
+    return path
+
+
+def save_step_registry(base_dir: Path, workflow_id: str,
+                       registry: Dict[str, Any], aliases: Dict[str, str],
+                       evidence_base_dir: Optional[Path] = None) -> Path:
+    """原子写入步骤登记；返回文件路径。"""
+    path = store_path(base_dir, workflow_id)
+    payload = {
+        "schema": STORE_SCHEMA,
+        "workflow_id": workflow_id,
+        "saved_at": datetime.now().isoformat(),
+        "evidence_base_dir": str(evidence_base_dir) if evidence_base_dir else None,
+        "step_registry": registry,
+        "step_aliases": aliases,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+                   encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+def load_step_registry(base_dir: Path, workflow_id: str) -> Dict[str, Any]:
+    """读取并校验步骤登记；损坏/结构非法一律抛错，不降级。"""
+    path = store_path(base_dir, workflow_id)
+    if not path.is_file():
+        raise EvidenceStoreError(f"未找到步骤登记：{path}")
+    if path.stat().st_size > MAX_STORE_BYTES:
+        raise EvidenceStoreError("步骤登记超过大小上限，拒绝加载")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise EvidenceStoreError(f"步骤登记损坏：{path} ({exc})") from exc
+    if (not isinstance(data, dict)
+            or data.get("schema") != STORE_SCHEMA
+            or data.get("workflow_id") != workflow_id
+            or not isinstance(data.get("step_registry"), dict)
+            or not isinstance(data.get("step_aliases"), dict)):
+        raise EvidenceStoreError("步骤登记结构非法，拒绝加载")
+    for key, entry in data["step_registry"].items():
+        if (not isinstance(entry, dict) or not isinstance(entry.get("result"), dict)
+                or not isinstance(entry.get("evidence_contract"), dict)):
+            raise EvidenceStoreError(f"步骤登记条目非法：{key}")
+    return data
 
 
 def build_contract(step: Any, skills_granted: Optional[Iterable[str]] = None,
