@@ -87,6 +87,30 @@ Skill("capability-twin-orchestrator", config={
 - Drafts only: `{"bdd": {"blocking": false}}` records the failure without stopping the run.
   It is not a way to claim G2/G3 completion.
 
+## Ontology Context Layer
+
+Every workflow attaches a bounded, anchored ontology subgraph to `shared_context["ontology"]`
+before sub-agents run. It is enabled by default; no extra step or skill is required.
+
+```python
+Skill("capability-twin-orchestrator", params={
+    "target_module": "mrp",
+    "workflow_type": "full_analysis",
+    "ontology": {"enabled": True, "hops": 1, "max_nodes": 40}
+})
+```
+
+- `status: ok` — subgraph ready; `nodes` carry `source_anchor` and can be cited directly.
+- `status: open-question` — ontology is built but has no node for this module; do not
+  claim the module was analyzed from semantic evidence.
+- `status: unavailable` — `ontology/manifest.json` or the query script is missing.
+  Build it with `python scripts/build_ontology.py --source "$ODOO_SOURCE_PATH" --out ontology`.
+- `status: disabled` — only via explicit `ontology.enabled=false` (draft use).
+
+The ontology never satisfies step evidence and never changes workflow status; it only
+reduces the source exploration AI has to do. The result contains `ontology_context` as a
+fingerprint, while the full subgraph remains in `final_shared_context["ontology"]`.
+
 ## Common Use Cases
 
 ### Ecosystem Analysis

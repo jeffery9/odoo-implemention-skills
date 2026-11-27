@@ -6,8 +6,9 @@
 > **明确非目标**：让 AI 理解应用上运行的业务（业务流程、角色语义、工作空间、状态业务含义）。
 > **口径**：FDE 2.0——不加权打分，只给证据链与可复现验证；本地只做静态检查，
 > 构建、全量测试与运行时验证由 CI 执行（用户约束）。
-> **状态**：用户已批准并进入实施。WP1~WP5 的机制代码已落地（分支 `feat/odoo-ontology`），
-> WP6 的基准任务前后对比需取得 CI 全绿与实测数据后才能判定；本地未跑全量测试。
+> **状态**：用户已批准并进入实施。WP1~WP5 机制代码已落地（分支 `feat/odoo-ontology`，
+> PR #14 CI 全绿）；本体已接入框架主流程，见 §12。WP6 的基准任务前后对比仍需
+> 取得实测数据后才能判定；本地未跑全量测试。
 
 ---
 
@@ -436,4 +437,49 @@ python scripts/ontology_lookup.py --model mrp.production --carrier python --hops
 
 WP1 落地 §11.1/11.2/11.5；WP2 落地 §11.3 的 discover + 模型/框架记录提取；
 WP3 落地 §11.4 的框架记录完整性；WP4 落地 §11.4 的三类逻辑提取器；
-WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线与基准任务验证。
+WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线与基准任务验证；
+§12 为框架流程集成，不新增工作包编号。
+
+---
+
+## 12. 框架流程集成
+
+本体不再是孤立工具，而是编排主流程中的**只读语义层**。
+
+### 12.1 接入点
+
+| 位置 | 行为 |
+|---|---|
+| `execute_workflow` preflight 之后 | 调用 `_ontology_context()`，写入 `shared_context["ontology"]` |
+| `execute_subagent` | 既有 `shared_context` 透传，所有子代理自动拿到同一子图 |
+| `render_deliverables_bundle` | 结果附 `ontology_context` 指纹，交付物可回溯锚点 |
+| `framework_paths` | 新增 `ontology_dir()` / `ontology_scripts_dir()`，路径不依赖 CWD |
+
+本体的 status **不参与** BDD 门禁判定、不改变 workflow status、不新增阶段编号。
+
+### 12.2 入参（默认启用）
+
+| 字段 | 默认 | 含义 |
+|---|---|---|
+| `ontology.enabled` | `True` | 唯一关闭方式（草稿用） |
+| `ontology.hops` | `1` | 关系展开深度 |
+| `ontology.max_nodes` | `40` | 上下文节点上限，超出截断并标 `truncated` |
+| `ontology.carrier` / `version` / `model` | 空 | 按载体 / 版本 / 技术名过滤 |
+
+### 12.3 状态与 fail-closed
+
+- `ok`：有节点，全部带 `source_anchor`；
+- `open-question`：本体已构建但无该模块节点，或查询无结果；
+- `unavailable`：无 manifest 或查询脚本缺失（copy 安装场景），附 `open_questions`；
+- `disabled`：显式 `ontology.enabled=false`。
+
+任何异常都被降级为 `unavailable`，不返回空绿图。结果里的 `ontology_context`
+只是指纹，完整子图保留在 `final_shared_context["ontology"]`。
+
+### 12.4 不变量
+
+- 不填充 `capabilities: {}`，GAP-007 锁定不变；
+- 不新增 pytest 用例，CI 基线保持 `265 passed`；集成检查折进
+  `build_ontology.py --self-test` 的 CI 步骤；
+- 本体子图只是推理输入，不替代步骤证据、FDE 记录或源码锚点；
+- `ontology/` 仍是派生产物，禁止手改，哈希守卫不变。

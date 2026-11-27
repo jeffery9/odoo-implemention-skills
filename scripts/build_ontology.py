@@ -56,6 +56,45 @@ def run_self_test() -> int:
         assert "demo.order" in {node["id"] for node in queried["nodes"]}
         assert queried["edges"], "lookup returned no edges"
 
+        # 框架集成：本体必须以有界、带锚点的只读子图进入 shared_context。
+        import importlib.util
+        adapter_script = (REPO_ROOT / "skills" / "capability-twin-orchestrator"
+                          / "scripts" / "ontology_context.py")
+        spec = importlib.util.spec_from_file_location("ct_ontology_context", adapter_script)
+        assert spec and spec.loader, "ontology context adapter not loadable"
+        adapter = importlib.util.module_from_spec(spec)
+        sys.modules["ct_ontology_context"] = adapter
+        spec.loader.exec_module(adapter)
+
+        ctx = adapter.build_context(
+            ontology_dir=first, ontology_scripts_dir=REPO_ROOT / "scripts",
+            target_module="demo")
+        assert ctx["status"] == "ok", ctx
+        assert ctx["anchors"], "context has no physical anchors"
+        assert all(node.get("source_anchor") for node in ctx["subgraph"]["nodes"])
+        assert ctx["consumption"].startswith("read-only")
+
+        bounded = adapter.build_context(
+            ontology_dir=first, ontology_scripts_dir=REPO_ROOT / "scripts",
+            target_module="demo", max_nodes=2)
+        assert bounded["subgraph"]["truncated"], "context was not bounded"
+        assert len(bounded["subgraph"]["nodes"]) <= 2
+
+        unbuilt = adapter.build_context(
+            ontology_dir=None, ontology_scripts_dir=REPO_ROOT / "scripts",
+            target_module="demo")
+        assert unbuilt["status"] == "unavailable" and unbuilt["open_questions"], unbuilt
+
+        absent = adapter.build_context(
+            ontology_dir=first, ontology_scripts_dir=REPO_ROOT / "scripts",
+            target_module="absent_module")
+        assert absent["status"] == "open-question", absent
+
+        disabled = adapter.build_context(
+            ontology_dir=first, ontology_scripts_dir=REPO_ROOT / "scripts",
+            target_module="demo", enabled=False)
+        assert disabled["status"] == "disabled" and not disabled["subgraph"]["nodes"]
+
         assert guard_check(first / "manifest.json", second)["status"] == "pass"
         manifest_path = first / "manifest.json"
         drifted = json.loads(manifest_path.read_text(encoding="utf-8"))
