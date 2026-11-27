@@ -455,7 +455,7 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 | `capability_registry` | prompt agent 指令中直接附带 `ontology_context` 与 `ontology_contract`，不再只给 `shared_context_keys` |
 | `agents/*/main.py` | 带 Python 入口的 8 个 agent 同样把 `ontology_context` / `ontology_contract` 透传到 `instructions` 同级，避免只给 AGENT.md 文本却拿不到指纹 |
 | `evidence_gate` | 校验 `ontology_consumption` 的指纹、mode、node_id、anchor 与说明/理由 |
-| `render_deliverables_bundle` | 结果附 `ontology_context` 指纹，交付物可回溯锚点 |
+| `render_deliverables_bundle` | 结果附 `ontology_context` 指纹；完整锚点仍在 `shared_context["ontology"]`。交付物正文的 `source_anchor` 由语义执行者按步骤证据填写，本体不冒充交付物证据 |
 | `framework_paths` | 新增 `ontology_dir()` / `ontology_scripts_dir()`，路径不依赖 CWD |
 
 本体的 status **不参与** BDD 门禁判定、不改变 workflow status、不新增阶段编号。
