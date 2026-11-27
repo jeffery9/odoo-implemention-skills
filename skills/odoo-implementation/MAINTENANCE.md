@@ -132,8 +132,8 @@ grep -c '^#### SEED-' skills/odoo-implementation/SKILL.md
 | 技能包版本 | 0.4.0 |
 | 支持 Odoo 版本 | 17.0 / 18.0 / 19.0 |
 | 种子能力 | SEED-001~013 |
-| 注册表 | skills 22 / agents 18 / capabilities 空 |
-| 全量测试 | 210 passed（基线 `3df9f5f`） |
-| 执行器测试 | 15 项，全离线 |
+| 注册表 | skills 20 / agents 18 / capabilities 空 |
+| 全量测试 | 待 CI 复核（A 级改动新增多组测试，旧基线 `210 passed` 于 `3df9f5f` 已失效） |
+| 执行器测试 | 22 项，全离线 |
 
 基线更新规则：仅在合并进 main 后更新本表，并注明对应 merge commit。

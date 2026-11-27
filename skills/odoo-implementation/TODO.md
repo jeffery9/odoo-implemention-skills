@@ -16,7 +16,7 @@
 | 项目模板 | project-state / artifact-index / seed-actions（客户 + 产品主数据）/ base-data-actions / core-services-actions | 已落地 |
 | 参考文档 | contract-guide / error-taxonomy / evidence-levels / version-compatibility | 已落地 |
 | 流水线挂载 | orchestrator 两处可选钩子（`_bdd_preflight` / `render_deliverables_bundle`），默认关闭 | 已落地 |
-| 注册与守卫 | 注册表 0.4.0 同步、版本假绿守卫已修复、210 passed | 已落地 |
+| 注册与守卫 | 注册表 0.4.0 同步、版本假绿守卫已修复；全量测试结果待 CI 复核 | 已落地 |
 | 维护规范 | `MAINTENANCE.md`（文件职责、变更流程、发布清单、禁止事项） | 已落地 |
 
 「已落地」仅指工程产物存在，不等于场景通过（G3）或价值实现，见 GAP-003。

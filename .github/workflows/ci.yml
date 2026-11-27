@@ -18,8 +18,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install test dependency
-        run: python -m pip install --disable-pip-version-check pytest
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check pytest PyYAML
 
       - name: Static compile
         run: python -m compileall -q skills scripts tests conftest.py
@@ -27,14 +27,20 @@ jobs:
       - name: Full test suite
         run: python -m pytest -q
 
-      - name: Registry rebuild is idempotent
+      - name: Registry matches code (no drift, rebuild is idempotent)
         run: |
-          python scripts/discover_capabilities.py
           R=skills/capability-twin-orchestrator/capability_registry.json
-          H1=$(sha256sum "$R" | cut -d' ' -f1)
+          H_COMMITTED=$(sha256sum "$R" | cut -d' ' -f1)
           python scripts/discover_capabilities.py >/dev/null
-          H2=$(sha256sum "$R" | cut -d' ' -f1)
-          test -n "$H1" && test "$H1" = "$H2"
+          H_REBUILT=$(sha256sum "$R" | cut -d' ' -f1)
+          if [ "$H_COMMITTED" != "$H_REBUILT" ]; then
+            echo "registry drift: committed=$H_COMMITTED rebuilt=$H_REBUILT" >&2
+            git --no-pager diff -- "$R" >&2 || true
+            exit 1
+          fi
+          python scripts/discover_capabilities.py >/dev/null
+          H_AGAIN=$(sha256sum "$R" | cut -d' ' -f1)
+          test "$H_REBUILT" = "$H_AGAIN"
 
       - name: Install-layout self check
         run: python skills/capability-twin-orchestrator/scripts/framework_paths.py
