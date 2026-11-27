@@ -39,4 +39,18 @@
 - **维护性评估**: {{maintenance_impact}}
 
 ---
+
+## 5. 证据、价值三态与验收边界 (Evidence, Value States & Boundary)
+- **结论依据**: {{evidence_basis}}
+- **源码/材料锚点**: {{source_anchor}}
+- **验收记录**: {{acceptance_record}}
+- **基线 (Baseline)**: {{value_baseline}}
+- **目标 (Target)**: {{value_target}}
+- **实测 (Measured)**: {{value_measured}}
+- **测量来源**: {{value_measurement_source}}
+
+> 交付验收 ≠ 价值实现。本节只记录可核验的价值三态与证据，不代替客户侧价值裁定
+> （FDE 2.0 §5.5）；无基线时如实写「无基线」，不编造数字。
+
+---
 *Capability Twin 3.5 | Gap Analyzer Agent*

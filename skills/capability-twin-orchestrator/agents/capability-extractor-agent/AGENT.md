@@ -19,6 +19,9 @@ input_parameters: ["target_module", "granularity", "feature_scope"]
 - 每个逻辑块给三要素：配置路径、执行方法、验证证据。
 - 标注复用边界：适用模块、版本、前置条件、不适用场景。
 - 标注来源与版本，保证复用时不丢失情境。
+- **KB 回流消费点**：复用历史结论前必须通过 `knowledge-manager` 的
+  `retrieve(..., approved_only=true)` 检索，只消费同时带 `approved_by` 与
+  `source_anchor` 的候选；未确认候选只读可见，不得写入本步能力单元（FDE A-3）。
 
 **不负责**
 - 不重新命名功能（复用 function 层 `feature_id`）。

@@ -103,6 +103,29 @@ class TestKnowledgeManager(unittest.TestCase):
         self.assertGreater(len(knowledge_items), 0)
         self.assertEqual(knowledge_items[0]["key"], "retrieval_test")
 
+    def test_approved_only_reflow_consumption_point(self):
+        """A-3：只有带 approved_by + source_anchor 的知识候选可被回流消费。"""
+        self.manager.execute({
+            "operation": "store", "knowledge_key": "reflow_approved",
+            "knowledge_data": {"ok": True}, "tags": ["reflow"],
+            "approved_by": "reviewer-a",
+            "source_anchor": "addons/account/models/account_move.py:L128",
+        })
+        self.manager.execute({
+            "operation": "store", "knowledge_key": "reflow_raw",
+            "knowledge_data": {"ok": False}, "tags": ["reflow"],
+        })
+        result = self.manager.execute({
+            "operation": "retrieve", "search_query": "reflow",
+            "tags": ["reflow"], "max_results": 10, "approved_only": True,
+        })
+        keys = {item["key"] for item in result["knowledge_items"]}
+        self.assertIn("reflow_approved", keys)
+        self.assertNotIn("reflow_raw", keys)
+        stats = result["results"]["retrieval_stats"]
+        self.assertTrue(stats["approved_only"])
+        self.assertGreater(stats["rejected_unapproved"], 0)
+
     def test_knowledge_update(self):
         """测试知识更新"""
         # 先存储知识

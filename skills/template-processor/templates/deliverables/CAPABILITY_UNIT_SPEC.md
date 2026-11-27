@@ -36,6 +36,9 @@
 ## 5. 复用与集成指南
 - **集成切入点 (Hooks)**: `{{method_hook_point}}`
 - **复用提示**: {{reusability_notes}}
+- **适用边界 (Applicability Boundary)**: {{reuse_boundary}}
+- **验证证据 (Verification Evidence)**: `{{verification_anchor}}`（源码/场景锚点）
+- **版本 (Version)**: {{unit_version}}
 
 ---
 *Persisted in Capability Twin Memory (JSONL) | 100% Traceable*
