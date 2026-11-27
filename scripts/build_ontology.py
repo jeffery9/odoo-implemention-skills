@@ -8,13 +8,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from check_ontology import check as guard_check  # noqa: E402
 from ontology_lib.builder import build  # noqa: E402
+from ontology_lookup import lookup  # noqa: E402
 from ontology_lib.core import (  # noqa: E402
     REPO_ROOT, SCHEMA_PATH, SCOPE_PATH, Node, canonical_json, load_json,
     validate_graph,
@@ -47,6 +50,19 @@ def run_self_test() -> int:
         assert {node["carrier"] for node in logic} == {"python", "view", "owl"}, logic
         assert any(node.get("condition") for node in logic), "no condition captured"
         assert any(node.get("effect") for node in logic), "no effect captured"
+
+        queried = lookup(first, model="demo.order", carrier="python", hops=1)
+        assert queried["status"] == "ok", "lookup failed"
+        assert "demo.order" in {node["id"] for node in queried["nodes"]}
+        assert queried["edges"], "lookup returned no edges"
+
+        assert guard_check(first / "manifest.json", second)["status"] == "pass"
+        manifest_path = first / "manifest.json"
+        drifted = json.loads(manifest_path.read_text(encoding="utf-8"))
+        drifted["sha256"] = "deadbeef"
+        manifest_path.write_text(json.dumps(drifted), encoding="utf-8")
+        drift = guard_check(manifest_path, second)
+        assert drift["status"] == "fail", "manifest drift was not detected"
 
         errors, _ = validate_graph(
             [Node(
