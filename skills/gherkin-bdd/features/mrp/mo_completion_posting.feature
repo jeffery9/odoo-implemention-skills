@@ -10,14 +10,14 @@
     假如 账套「华东公司」已启用中国企业会计科目表
     而且 会计期间「2026-11」已打开
 
-  @ct-id=SCN-MRP-001 @ct-unit=CU-MRP-008 @ct-gate=G2 @ct-priority=P0
+  @ct-id=SCN-MRP-001 @ct-unit=CU-MRP-008 @ct-gate=G2 @ct-priority=P0 @ct-seed=SEED-013
   场景: 制造订单全部完工入库
     假如 制造订单「MO-001」已投产，物料清单「清单-甲」的在制品余额为 800 元
     当 车间对该制造订单执行完工入库，产成品「C」入库 10 件
     那么 在制品余额减少 800 元
     而且 产成品「C」的库存计价增加 800 元
 
-  @ct-id=SCN-MRP-002 @ct-unit=CU-MRP-009 @ct-gate=G2 @ct-priority=P1
+  @ct-id=SCN-MRP-002 @ct-unit=CU-MRP-009 @ct-gate=G2 @ct-priority=P1 @ct-seed=SEED-013
   @ct-source=addons/mrp_account/models/mrp_production.py:L233
   场景大纲: 标准成本与实际成本的差异分摊
     假如 制造订单「MO-002」已完工，该批产品的标准成本为 <标准成本> 元

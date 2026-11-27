@@ -39,13 +39,28 @@
 
 > 版本升级仍可能带来字段级微调。动作计划在执行前应于目标版本的 staging 环境用 dry-run + 小批量 `--apply` 验证，不得假设跨版本零改动。
 
-### 2.3 产品主数据（SEED-009）—— 引用方式约束，字段未逐版本核实
+### 2.3 产品主数据（SEED-009）—— 已核实三版本一致（引用口径）
 
 产品导入模板 `templates/project/seed-actions.template.json` 使用 `product.category`（`name`）与 `product.template`（`name`、`default_code`、`type`、`categ_id`、`uom_id`、`uom_po_id`、`sale_ok`、`purchase_ok`、`list_price`）。
 
 - 计量单位只引用 `uom.uom` 记录 ID，该 ID 由 `SEED-004` 按 17/18 与 19 的不同字段分化导入后提供；产品动作不引用 `uom.category`，因此不受 §2.1 的模型删除影响。模板中的 ID 均为占位值，项目侧必须替换为实际记录 ID。
-- 上述产品字段在 17/18/19 是否存在破坏性改名**尚未逐版本核实**。本包不把「未核实」表述为「三版本一致」；执行前必须在目标版本 staging 用 dry-run 与小批量 `--apply` 验证字段与取值，确认有差异后按动作级 `odoo_versions` 分化。
+- 上述产品字段在 17/18/19 未发生破坏性改名，**核实范围**限于本包模板使用的字段与方法；核实结果写入 SEED-009 定义卡的「版本差异」行。业务取值仍须在目标版本 staging 用 dry-run 与小批量 `--apply` 复核；若发现差异，按动作级 `odoo_versions` 分化并更新本节。
 - 编码唯一性、产品分类层级与价格口径属业务判断，不由执行器决定。
+
+### 2.4 组织、编号与会计底座（SEED-010~013）—— 已核实三版本一致
+
+核实范围限于本包初始化动作使用的模型与字段，不覆盖业务含义与专业判断：
+
+| 能力 | 模型 / 字段 | 17/18/19 结论 |
+|---|---|---|
+| SEED-010 组织与权限 | `res.company` / `res.partner` / `res.users` / `res.groups` | 组织层级与授权字段未发生破坏性改名 |
+| SEED-011 编号规则 | `ir.sequence` 的 `prefix` / `padding` / `number_next` | 字段稳定 |
+| SEED-012 会计底座 | `account.account` / `account.journal` / `account.fiscal.year` | 初始化字段未发生破坏性改名 |
+| SEED-013 期初余额 | `import_data(fields, rows, mode=...)` | 签名一致，见 §3 |
+
+上述结论由 `tests/test_odoo_seed_executor.py::test_22_every_seed_card_has_verified_version_row`
+守卫：13 张能力卡必须都有「版本差异」行，且不得出现「待核实 / 尚未核实」。若后续 Odoo 版本升级破坏该
+口径，必须同时更新本表、对应能力卡与动作模板，不能只改文档。
 
 ## 3. 核心服务方法差异（SEED-001~003）
 
