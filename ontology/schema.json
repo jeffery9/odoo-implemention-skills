@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "node_kinds": [
+    "module", "model", "field", "method", "view", "action", "menu",
+    "group", "rule", "acl", "logic"
+  ],
+  "framework_record_kinds": ["view", "action", "menu", "group", "rule", "acl"],
+  "carriers": ["python", "view", "owl"],
+  "triggers": ["method", "constraint", "compute", "onchange", "button", "event", "lifecycle"],
+  "evidence": ["platform-fact", "repository-fact", "inference", "open-question"],
+  "ownership": ["code_first", "metadata_first", "derived"],
+  "edge_types": ["defines", "binds", "calls", "guards", "renders", "extends", "depends_on"],
+  "required_node_fields": ["id", "kind", "ownership", "source_anchor", "evidence"],
+  "required_logic_fields": ["carrier", "trigger"],
+  "model_whitelist": [
+    "ir.model", "ir.model.fields", "ir.model.inherit", "ir.model.relation",
+    "ir.model.constraint", "ir.model.fields.selection", "ir.model.data",
+    "ir.model.access", "ir.rule", "res.groups",
+    "ir.ui.view", "ir.ui.view.custom", "ir.actions.actions",
+    "ir.actions.act_window", "ir.actions.act_window.view",
+    "ir.actions.act_window_close", "ir.actions.act_url", "ir.actions.client",
+    "ir.actions.server", "ir.actions.todo", "ir.actions.report",
+    "ir.embedded.actions", "ir.ui.menu", "ir.asset", "ir.filters",
+    "ir.cron", "ir.default", "ir.sequence", "ir.sequence.date_range",
+    "ir.config_parameter", "ir.module.module", "ir.module.category",
+    "ir.module.module.dependency", "ir.module.module.exclusion"
+  ],
+  "model_exclusions": [
+    "res.users", "res.partner", "res.company", "res.country", "res.currency",
+    "res.lang", "res.bank", "ir.attachment", "ir.cron.trigger",
+    "ir.cron.progress", "ir.autovacuum", "ir.logging", "ir.profile",
+    "ir.mail.server", "ir.http", "ir.qweb", "ir.binary", "ir.fields"
+  ],
+  "relation_tables": [
+    "ir_ui_view_group_rel", "rule_group_rel", "ir_ui_menu_group_rel"
+  ],
+  "generated_markers": {
+    "generated": "_generated",
+    "do_not_edit": "_do_not_edit"
+  }
+}

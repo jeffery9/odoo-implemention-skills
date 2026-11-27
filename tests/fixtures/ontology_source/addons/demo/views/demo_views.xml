@@ -1,0 +1,19 @@
+<odoo>
+  <data>
+    <record id="demo_order_form" model="ir.ui.view">
+      <field name="name">demo.order.form</field>
+      <field name="model">demo.order</field>
+      <field name="arch" type="xml">
+        <form>
+          <field name="state" invisible="state == 'done'"/>
+          <button name="action_start" type="object" string="Start"/>
+        </form>
+      </field>
+    </record>
+    <record id="demo_order_action" model="ir.actions.act_window">
+      <field name="name">Demo Orders</field>
+      <field name="res_model">demo.order</field>
+    </record>
+    <menuitem id="demo_order_menu" action="demo_order_action" name="Demo"/>
+  </data>
+</odoo>
