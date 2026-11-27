@@ -335,6 +335,11 @@ class KnowledgeManager:
             "size_bytes": len(serialized_data),
             "hash": self._calculate_data_hash(serialized_data)
         }
+        # KB 回流消费点（FDE §11 / A-3）：只有带人工确认与来源锚点的候选，
+        # 才能被消费方以 approved_only=true 检索并采用；框架不自动代填这两项。
+        for field in ("approved_by", "source_anchor"):
+            if config.get(field):
+                metadata[field] = str(config[field])
 
         # 存储知识
         storage_result = self._persist_knowledge(knowledge_id, serialized_data, metadata)
@@ -374,6 +379,19 @@ class KnowledgeManager:
         # 查询索引获取候选条目
         candidates = self._query_index(parsed_query, {"tags": tags})
 
+        # KB 回流消费点：approved_only=true 时只消费带人工确认与来源锚点的候选。
+        # 这是「消费方主动采用才落库」的入口；不传则保持既有检索语义。
+        approved_only = bool(config.get("approved_only", False))
+        rejected_candidates = 0
+        if approved_only:
+            before = len(candidates)
+            candidates = [
+                c for c in candidates
+                if (c.get("metadata", {}).get("approved_by")
+                    and c.get("metadata", {}).get("source_anchor"))
+            ]
+            rejected_candidates = before - len(candidates)
+
         # 计算相关性评分
         ranked_results = self._rank_results(candidates, parsed_query)
 
@@ -408,7 +426,9 @@ class KnowledgeManager:
                 "retrieval_stats": {
                     "candidates_evaluated": len(candidates),
                     "results_returned": len(knowledge_items),
-                    "total_found": len(ranked_results)
+                    "total_found": len(ranked_results),
+                    "approved_only": approved_only,
+                    "rejected_unapproved": rejected_candidates
                 }
             },
             "knowledge_items": knowledge_items

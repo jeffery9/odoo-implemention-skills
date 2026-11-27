@@ -99,7 +99,7 @@ python3 skills/odoo-implementation/scripts/odoo_seed_executor.py \
   --odoo-version 18.0 --channel shell --plan project/seed-actions.json
 ```
 
-通道矩阵：`rpc` 适用 17/18（19 可用但告警 deprecated）；`json2` 仅 19；`shell` 三版本通用。动作可用 `odoo_versions` 标注适用版本，执行器按 `--odoo-version` 过滤（不匹配跳过计入 `skipped_actions`）；含版本敏感动作却未指定版本 → `CT-003` error 零执行（fail-closed）。模板见 `templates/project/seed-actions.template.json` 与 `templates/project/base-data-actions.template.json`。执行器不内置业务动作；写操作必须带 `idempotency_key`（缺失判 `CT-007 blocked`），且不自动重试。写操作白名单含四类标准 CRUD（`create`/`write`/`unlink`/`copy`）、`import_data`，以及三类核心服务动作 `button_immediate_install`（模块安装）、`set_param`（配置参数）；三者均按写操作强制幂等键。退出码：`0` = 无阻断；`1` = error/blocked；`2` = 工具/入参错误。
+通道矩阵：`rpc` 适用 17/18（19 可用但告警 deprecated）；`json2` 仅 19；`shell` 三版本通用。动作可用 `odoo_versions` 标注适用版本，执行器按 `--odoo-version` 过滤（不匹配跳过计入 `skipped_actions`）；含版本敏感动作却未指定版本 → `CT-003` error 零执行（fail-closed）。模板见 `templates/project/seed-actions.template.json` 与 `templates/project/base-data-actions.template.json`。执行器不内置业务动作；写操作必须带 `idempotency_key`（缺失判 `CT-007 blocked`），且不自动重试。写操作白名单含四类标准 CRUD（`create`/`write`/`unlink`/`copy`）、`import_data`，以及三类核心服务动作 `button_immediate_install`（模块安装）、`set_param`（配置参数）；三者均按写操作强制幂等键。`--apply` 默认使用工作区 `artifacts/idempotency_ledger.json` 作为幂等账本（可用 `--ledger-path` 覆盖）：键 = 计划 ID + 动作序号 + 幂等键；成功写入才记账，重放同一键即 `skipped`；账本损坏判 `CT-011 error` 且零执行，不降级为空账本。退出码：`0` = 无阻断；`1` = error/blocked；`2` = 工具/入参错误。
 
 项目 onboarding（把多个能力阶段编排为一次接入；编排层只排序与门禁，执行仍委派上述唯一出口）：
 
@@ -144,16 +144,16 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | `SEED-001` | 模块安装 | `module` | 按实施清单启用所需模块，形成可承载业务单据的功能边界 | 暂无，需由 `gherkin-bdd` 补充 |
 | `SEED-002` | 配置参数初始化 | `shared` | 建立系统级配置参数基线，使全局开关与默认值可追溯 | 暂无，需由 `gherkin-bdd` 补充 |
 | `SEED-003` | CSV/XML 数据导入 | `module` | 按批次导入结构化数据并核对，形成可重放的导入基线 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-004` | 计量单位初始化 | `shared` | 建立单位分类、基准单位与换算关系，作为产品与库存的度量基线 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-005` | 币种初始化 | `shared` | 建立本位币与启用币种清单，确定符号、小数位与计价口径 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-006` | 国家与地区初始化 | `shared` | 建立国家/地区与地址格式基线，供地址、税务与组织引用 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-007` | 语言与本地化初始化 | `shared` | 建立启用语言、默认语言与时区基线，支撑多语言呈现 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-008` | 汇率初始化 | `module` | 建立可追溯的汇率基线，支撑跨币种折算与报表换算 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-009` | 主数据初始化 | `shared` | 建立客户、供应商与产品主数据基线；计量单位由 `SEED-004` 提供 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-010` | 组织架构与权限初始化 | `shared` | 建立公司、部门、用户与权限分组基线 | 暂无，需由 `gherkin-bdd` 补充 |
-| `SEED-011` | 编号规则初始化 | `core` | 建立单据序列与编号规则，保证单据可追溯 | 暂无，需由 `gherkin-bdd` 补充 |
+| `SEED-004` | 计量单位初始化 | `shared` | 建立单位分类、基准单位与换算关系，作为产品与库存的度量基线 | `features/base/base_initialization.feature` (`SCN-BAS-001`) |
+| `SEED-005` | 币种初始化 | `shared` | 建立本位币与启用币种清单，确定符号、小数位与计价口径 | `features/base/base_initialization.feature` (`SCN-BAS-001`) |
+| `SEED-006` | 国家与地区初始化 | `shared` | 建立国家/地区与地址格式基线，供地址、税务与组织引用 | `features/base/base_initialization.feature` (`SCN-BAS-001`) |
+| `SEED-007` | 语言与本地化初始化 | `shared` | 建立启用语言、默认语言与时区基线，支撑多语言呈现 | `features/base/base_initialization.feature` (`SCN-BAS-001`) |
+| `SEED-008` | 汇率初始化 | `module` | 建立可追溯的汇率基线，支撑跨币种折算与报表换算 | `features/base/base_initialization.feature` (`SCN-BAS-002`) |
+| `SEED-009` | 主数据初始化 | `shared` | 建立客户、供应商与产品主数据基线；计量单位由 `SEED-004` 提供 | `features/base/base_initialization.feature` (`SCN-BAS-003`) |
+| `SEED-010` | 组织架构与权限初始化 | `shared` | 建立公司、部门、用户与权限分组基线 | `features/base/base_initialization.feature` (`SCN-BAS-004`) |
+| `SEED-011` | 编号规则初始化 | `core` | 建立单据序列与编号规则，保证单据可追溯 | `features/base/base_initialization.feature` (`SCN-BAS-004`) |
 | `SEED-012` | 会计模块初始化 | `module` | 建立科目表、会计期间、日记账等会计底座 | `features/account/shipped_not_invoiced.feature` |
-| `SEED-013` | 期初余额导入 | `module` | 将科目期初余额导入并核对，形成可对账起点 | `features/account/shipped_not_invoiced.feature` |
+| `SEED-013` | 期初余额导入 | `module` | 将科目期初余额导入并核对，形成可对账起点 | `features/account/shipped_not_invoiced.feature`；`features/mrp/mo_completion_posting.feature` (`@ct-seed=SEED-013`) |
 
 其中 `SEED-001`~`SEED-003` 是**核心服务族**：提供实施起步阶段的系统级动作能力；`SEED-004`~`SEED-008` 是**基础数据族**：位于主数据与会计底座之前，其它种子能力只引用其声明、不重复定义。`SEED-008` 汇率依赖 `SEED-005` 币种与会计本位币的确定。两族并列，不互为前提。
 
@@ -185,6 +185,7 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 完成判据（G2 静态） | 参数键名唯一；每项都有声明取值；读回值与声明一致 |
 | 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
 | 边界 | 不存储密钥到动作计划或报告（凭据只走环境变量）；不判定参数取值的业务正确性；不做运行中参数变更 |
+| 版本差异 | **已核实三版本一致**：`ir.config_parameter.set_param(key, value, group=None)` 在 17/18/19 签名一致；依据 `references/version-compatibility.md` §3 |
 
 #### SEED-003 CSV/XML 数据导入
 
@@ -208,7 +209,7 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 建立单位分类（长度/重量/数量/时间等） ② 建立基准单位与换算单位 ③ 录入换算系数并核对精度 ④ 设定产品默认单位 ⑤ 冻结基线版本 |
 | 产物 | 单位分类清单、换算关系表、精度核对记录、基线版本号 |
 | 完成判据（G2 静态） | 分类/基准单位/换算单位声明齐全；换算系数无环且精度声明完整 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景，不得声称场景通过 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-001` 覆盖初始化→核对→冻结基线；通过属 G3，不等于价值实现 |
 | 边界 | 不判定度量口径的业务正确性；不自动改写已有产品的计量单位 |
 | 版本差异 | **硬差异**：17/18 用 `uom.category` + `uom_type`/`factor`；19 移除 `uom.category`，改用 `relative_uom_id`/`relative_factor`。动作必须按 `odoo_versions` 分化，见 `references/version-compatibility.md` |
 
@@ -221,8 +222,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 确认本位币 ② 启用业务所需币种 ③ 核对符号与小数位 ④ 设定默认计价币种 ⑤ 冻结基线版本 |
 | 产物 | 启用币种清单、本位币声明、符号与小数位核对记录 |
 | 完成判据（G2 静态） | 本位币唯一；启用币种清单非空；符号与小数位声明完整 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-001` 覆盖；通过属 G3，不等于价值实现 |
 | 边界 | 不提供实时汇率接入（见 `SEED-008`）；不判定汇率与会计政策合规性 |
+| 版本差异 | **已核实三版本一致**：`res.currency` 的 `symbol` / `decimal_places` / `active` 字段在 17/18/19 未破坏性改名；依据 `references/version-compatibility.md` §2.2 |
 
 #### SEED-006 国家与地区初始化
 
@@ -233,8 +235,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 确认国家/地区清单 ② 导入国家与地区数据 ③ 配置地址格式与默认国家 ④ 核对国家与税务辖区的对应 ⑤ 冻结基线版本 |
 | 产物 | 国家/地区清单、地址格式配置、默认国家声明、版本 |
 | 完成判据（G2 静态） | 清单非空；默认国家唯一；地址格式声明完整且无悬空引用 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-001` 覆盖；通过属 G3，不等于价值实现 |
 | 边界 | 不判定税务辖区规则；不自动同步行政区划变更；不内置全量国家数据 |
+| 版本差异 | **已核实三版本一致**：`res.country` 的 `name` / `code` / `active` 字段在 17/18/19 稳定；依据 `references/version-compatibility.md` §2.2 |
 
 #### SEED-007 语言与本地化初始化
 
@@ -245,8 +248,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 安装并激活所需语言 ② 设定默认语言与时区 ③ 核对关键单据与报表的翻译可用性 ④ 记录本地化参数 ⑤ 冻结基线版本 |
 | 产物 | 启用语言清单、默认语言与时区声明、翻译可用性核对记录 |
 | 完成判据（G2 静态） | 启用语言清单非空；默认语言唯一；时区声明完整 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-001` 覆盖；通过属 G3，不等于价值实现 |
 | 边界 | 不提供机器翻译；不判定翻译质量；不覆盖用户个人语言偏好 |
+| 版本差异 | **已核实三版本一致**：`res.lang` 的 `code` / `active` / `date_format` 字段在 17/18/19 稳定；依据 `references/version-compatibility.md` §2.2 |
 
 #### SEED-008 汇率初始化
 
@@ -257,8 +261,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 确认汇率来源与生效日期策略 ② 导入初始汇率 ③ 核对本位币对各启用币种的覆盖 ④ 记录来源与生效日期 ⑤ 冻结版本并约定维护频率 |
 | 产物 | 汇率表、来源与生效日期记录、覆盖性核对报告、版本 |
 | 完成判据（G2 静态） | 每个启用币种都有对应汇率声明；来源与生效日期齐全；无缺失币种对 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-002` 覆盖；通过属 G3，不等于价值实现 |
 | 边界 | 不自动抓取实时汇率；不重算历史单据；非零差异必须由人确认 |
+| 版本差异 | **已核实三版本一致**：`res.currency.rate` 的 `rate` / `currency_id` / `name` 字段在 17/18/19 未破坏性改名；依据 `references/version-compatibility.md` §2.2 |
 
 #### SEED-009 主数据初始化
 
@@ -269,9 +274,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 盘点现有主数据并标记重复项 ② 确认编码与命名规范 ③ 分批建立客户/供应商 ④ 建立产品分类与产品模板，引用已导入的计量单位 ⑤ 抽样核对关键字段与编码唯一性 ⑥ 冻结基线并记录版本 |
 | 产物 | 主数据基线清单（含产品分类清单、产品编码清单、默认计量单位引用）、去重记录、基线版本号（写入项目工作区 `artifacts/`） |
 | 完成判据（G2 静态） | 客户/供应商/产品三类均已建档；产品编码唯一且分类与计量单位引用可达；编码规范声明完整；基线清单与去重记录存在 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景，不得声称场景通过 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-003` 覆盖编码唯一与引用可达；通过属 G3，不等于价值实现 |
 | 边界 | 不判断主数据的业务正确性；不替代数据治理；不做批量删除；不自动导入 BOM、产品变体与价格表；不硬编码计量单位记录 ID |
-| 版本差异 | 产品只引用 `uom.uom` 记录 ID（由 `SEED-004` 按版本分化产出），不依赖 19 已移除的 `uom.category`；产品字段的逐版本差异尚未核实，执行前须在目标版本 staging 以 dry-run + 小批量 `--apply` 验证，见 `references/version-compatibility.md` §2.3 |
+| 版本差异 | **已核实三版本一致（引用口径）**：产品只引用 `uom.uom` 记录 ID（由 `SEED-004` 分化产出），不依赖 19 已移除的 `uom.category`；模板使用的 `product.category` / `product.template` 字段在 17/18/19 未破坏性改名，依据 `references/version-compatibility.md` §2.3；业务取值仍须在目标版本 staging 以 dry-run + 小批量 `--apply` 复核 |
 
 #### SEED-010 组织架构与权限初始化
 
@@ -282,8 +287,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 建立公司与部门层级 ② 建立用户与角色 ③ 按权限矩阵分组授权 ④ 用最小权限原则复核 ⑤ 记录授权基线 |
 | 产物 | 组织层级清单、角色权限矩阵、授权基线版本 |
 | 完成判据（G2 静态） | 层级/角色/矩阵三者声明齐全；无越权的最小权限复核记录缺失 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-004` 覆盖权限矩阵与授权基线；通过属 G3，不等于价值实现 |
 | 边界 | 不判定权限设置的业务合理性；不做运行中权限变更；不存储凭据 |
+| 版本差异 | **已核实三版本一致**：`res.company` / `res.partner` / `res.users` 与 `res.groups` 的组织授权字段在 17/18/19 稳定；依据 `references/version-compatibility.md` §2.4 |
 
 #### SEED-011 编号规则初始化
 
@@ -294,8 +300,9 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 盘点单据类型 ② 确认编号格式与重置策略 ③ 建立各类型序列 ④ 验证连续性与唯一性 ⑤ 冻结规则版本 |
 | 产物 | 编号规则清单、序列清单、规则版本 |
 | 完成判据（G2 静态） | 每种单据都有对应序列声明；格式与重置策略完整；无重复前缀冲突 |
-| 完成判据（G3 场景） | 需 `.feature` 覆盖；当前无配套场景 |
+| 完成判据（G3 场景） | 由 `base_initialization.feature` 的 `SCN-BAS-004` 覆盖编号格式与序列基线；通过属 G3，不等于价值实现 |
 | 边界 | 不提供序列重置专用执行接口（通用动作走统一执行出口）；不修改历史单据编号 |
+| 版本差异 | **已核实三版本一致**：`ir.sequence` 的 `prefix` / `padding` / `number_next` 字段在 17/18/19 稳定；依据 `references/version-compatibility.md` §2.4 |
 
 #### SEED-012 会计模块初始化
 
@@ -308,6 +315,7 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 完成判据（G2 静态） | 科目表/期间/日记账三类声明齐全；配置引用可达；无悬空的期间或科目 |
 | 完成判据（G3 场景） | 由 `shipped_not_invoiced.feature` 覆盖发货未开票链路；通过属 G3，不等于价值实现 |
 | 边界 | 不提供过账专用执行接口（通用动作走统一执行出口）；不判定会计政策合规性（属专业判断）；期初余额见 `SEED-013` |
+| 版本差异 | **已核实三版本一致**：`account.account` / `account.journal` / `account.fiscal.year` 的初始化字段在 17/18/19 未破坏性改名；依据 `references/version-compatibility.md` §2.4 |
 
 #### SEED-013 期初余额导入
 
@@ -318,14 +326,15 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 | 关键步骤 | ① 核对期初余额表与科目映射 ② 试导入并生成差异报告 ③ 确认差异已清理 ④ 正式导入 ⑤ 生成对账记录并冻结版本 |
 | 产物 | 差异报告、对账记录、导入批次版本 |
 | 完成判据（G2 静态） | 期初余额表与科目映射齐全；试导入差异报告存在且差异已标记处理 |
-| 完成判据（G3 场景） | 由 `shipped_not_invoiced.feature` 覆盖后续发货开票链路；期初对账本身需补充场景 |
+| 完成判据（G3 场景） | 由 `shipped_not_invoiced.feature` 覆盖后续发货开票链路；`mo_completion_posting.feature` 的 `SCN-MRP-001/002` 通过 `@ct-seed=SEED-013` 引用本能力；期初对账本身仍需补充场景 |
 | 边界 | 不提供导入专用执行接口（通用动作走统一执行出口）；不自动核销差异；非零起点的差异必须由人确认 |
+| 版本差异 | **已核实三版本一致**：期初余额导入复用 `import_data(fields, rows, mode=...)`，17/18/19 签名一致；依据 `references/version-compatibility.md` §3 |
 
 ### 6.3 组合与边界
 
 - **依赖顺序**：编号即 onboarding 执行顺序。`SEED-001` 模块安装先行——它决定后续能力可用的功能边界；核心服务族 `SEED-001`/`002`/`003` 内部可并行。基础数据族 `SEED-004`/`005`/`006`/`007` 可并行，且应先于 `SEED-009`/`010`（主数据与组织引用其声明）；`SEED-008` 汇率依赖 `SEED-005` 与会计本位币的确定；在此之上 `SEED-009`/`SEED-010`/`SEED-011` 可并行；`SEED-012` 先于 `SEED-013`；会计底座应先于依赖过账的业务场景。
 - **证据边界**：本节的完成判据（G2 静态）只产出 E1/E2 证据；场景通过才进 E4，业务方确认才进 E5，见 `references/evidence-levels.md`。
-- **失败处理**：种子能力不定义新的失败码，沿用 `references/error-taxonomy.md` 的 10 类分类；写操作无幂等键按 `CT-007` 阻断，不得由自动化自行解除。
+- **失败处理**：种子能力沿用 `references/error-taxonomy.md` 的 11 类分类；写操作无幂等键按 `CT-007` 阻断，账本损坏按 `CT-011` error 且零执行，均不得由自动化自行解除。
 - **版本适配**：初始化方式随 Odoo 版本变化——17/18 走 XML-RPC、19 推荐 JSON-2；`SEED-004` 的计量单位在 19 模型结构改变，必须按 `odoo_versions` 分化动作。`--odoo-version` 必填于任何含版本敏感动作的初始化，详见 `references/version-compatibility.md`。
 - **不覆盖**：五层分层能力链、`capabilities` 注册表登记、业务专用执行接口（通用 RPC/shell 动作已收敛到统一执行出口）——三者均不在本包范围。
 
@@ -336,6 +345,7 @@ profile 模板见 `templates/project/onboarding-profile.template.json`。项目�
 - **单一事实**：项目用一份 profile 声明目标版本、通道与启用的 `seed_id` 阶段；阶段顺序不手写，由编排器按 §6.3 依赖顺序稳定排序。
 - **两道门禁**：`check`（静态就绪：版本/通道、seed 白名单、幂等键、凭据齐备、plan 存在）先于 `run`；`run` 默认 dry-run，`--apply` 才写入。
 - **链式 fail-closed**：逐阶段委派 `odoo_seed_executor.run()`，任一阶段 error/blocked 即停止，后续阶段标 `not_run`，报告给出 `stopped_at`；不跳过失败阶段、不自行解除阻断。
+- **幂等账本**：`run --apply` 向各阶段透传同一 `--ledger-path`（默认工作区 `artifacts/idempotency_ledger.json`），重放阶段由执行器判 `skipped`，账本损坏按 `CT-011` 停止后续阶段。
 - **边界**：编排器不实现任何 RPC/JSON-2/shell 调用、不读取凭据值、不内置业务动作，执行语义完全继承 §4 的单一出口；它只解决「多能力阶段如何快速、按序、可停地上线」，不替代场景门禁（G3）或业务验收。
 
 ## 7. 反模式

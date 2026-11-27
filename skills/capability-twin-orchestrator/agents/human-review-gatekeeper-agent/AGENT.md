@@ -72,6 +72,9 @@ input_parameters: ["target_module", "delivery_scope", "review_scope"]
 - 每条阻塞项须能指回上游具体条目（结论 ID / 用例 ID / FDE 条款号）。
 - 「建议结论」必须给反向理由（为何不给更高档）。
 - 不得用「整体质量良好」这类无依据总结替代条目化结论。
+- **双维质量分离**：工程质量证据（`quality-gate` 的 code / documentation / scenario_spec 结果）
+  与业务质量证据（客户确认、价值三态实测、UAT 场景结论）必须分列；任一门通过都不得替代
+  另一门，也不得用工程门结论宣布价值实现（FDE 2.0 §15.2 / §5.5）。
 
 ## 6. 完成判据（DoD）
 
@@ -79,6 +82,7 @@ input_parameters: ["target_module", "delivery_scope", "review_scope"]
 - [ ] 阻塞项、未验证项、待裁定项三者分列且互不重复。
 - [ ] 建议结论与阻塞项一致（有阻塞时不得建议 `release`）。
 - [ ] `human_decision` 留空待填，未代填。
+- [ ] 工程质量与业务质量证据分列，且未用其中一门替代另一门。
 
 ## 7. 禁止事项
 

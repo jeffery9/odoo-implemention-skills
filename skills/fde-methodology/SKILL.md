@@ -130,6 +130,12 @@ B 的 6/3/4/N 是**工作量与阶段编号**，不是价值流阶段，**不得
 本清单的执行义务（含 `fde_checklist` 输出字段）。判定规则：`fde_checklist` 存在 `fail`
 时该步骤不得声明成功，也不得进入 `human-review-gatekeeper-agent` 的 `release` 结论。
 
+**证据回填（A 级）**：编排器为每个挂载检查点的步骤附带 `evidence_contract`；
+`fde_checklist` 必须随 `submit_step_evidence()` 以 `fde_records` 提交，由
+`evidence_gate.py` 校验 9 条齐全、逐条带证据且无 `fail`。校验通过才回填
+`fde_checkpoint.recorded=true`，并把该步骤从 `delegated` 升级为 `success`；
+未提交或校验失败时，状态声称 `success` 也不计入完成。
+
 ## 5. 执行检查清单（每次评审必须逐条过）
 
 1. **先问题后方案**：输入是否含具体客户问题与业务负责人？缺则标注 `Discovery 待验证`，

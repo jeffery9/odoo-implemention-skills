@@ -12,14 +12,16 @@
 1. 零依赖：仅用 Python 标准库（xmlrpc.client / urllib.request / subprocess）。
 2. 默认 dry-run：不传 --apply 时只打印将执行的动作，绝不产生外部写操作。
 3. fail-closed：缺凭据 → CT-006 blocked；写操作无幂等键 → CT-007 blocked；
-   动作声明 odoo_versions 却未指定版本 → CT-003 error；通道与版本不兼容 → CT-003 error。
-   blocked/error 级别不得由自动化自行解除（error-taxonomy.md 重试禁令）。
+   动作声明 odoo_versions 却未指定版本 → CT-003 error；通道与版本不兼容 → CT-003 error；
+   幂等账本损坏 → CT-011 error。blocked/error 级别不得由自动化自行解除。
 4. 动作级版本过滤：声明 odoo_versions 的动作只在匹配版本执行，不匹配则跳过并计入
    skipped_actions；未声明者视为通用动作。
 5. 写操作不自动重试；只读操作失败最多重试 2 次，退避递增。
 6. 凭据只从环境变量读取，绝不写入动作计划、日志或报告。
 7. 报告为 JSON，与 validate_odoo_manifest.py / gherkin_gate.py 字段风格一致。
 8. 执行器不内置任何种子能力的业务动作；业务语义由 templates/project/ 下的计划声明。
+9. --apply 使用幂等账本（默认 artifacts/idempotency_ledger.json）：成功写入才记账，
+   重放同一「计划 ID + 动作序号 + 幂等键」即 skipped；账本损坏直接 error，不得降级为空账本。
 
 退出码：0 = 无阻断；1 = 存在 error/blocked；2 = 工具/入参错误。
 """
@@ -37,6 +39,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SUPPORTED_VERSIONS = ("17.0", "18.0", "19.0")
+
+# 幂等账本：运行产物，默认落在用户工作区的 artifacts/，不随技能包分发。
+DEFAULT_LEDGER_PATH = "artifacts/idempotency_ledger.json"
+LEDGER_SCHEMA_VERSION = 1
 
 # 凭据环境变量名——只认环境变量，不提供默认值（缺即 blocked）
 CREDENTIAL_ENV = {
@@ -195,6 +201,38 @@ def load_plan(path: Optional[str]) -> Dict[str, Any]:
     if not isinstance(data, dict) or not isinstance(data.get("actions", []), list):
         raise ExecutorError("动作计划必须是含 actions 数组的对象")
     return data
+
+
+def _ledger_key(plan_id: str, index: int, action: Dict[str, Any]) -> str:
+    """Stable key: plan ID + action index + declared idempotency key."""
+    return f"{plan_id}:{index}:{action.get('idempotency_key')}"
+
+
+def load_ledger(path: Optional[str]) -> Dict[str, Any]:
+    """Load the idempotency ledger; a corrupt ledger must fail closed."""
+    if not path:
+        return {"schema": LEDGER_SCHEMA_VERSION, "entries": {}}
+    ledger_file = Path(path)
+    if not ledger_file.exists():
+        return {"schema": LEDGER_SCHEMA_VERSION, "entries": {}}
+    try:
+        data = json.loads(ledger_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ExecutorError(f"幂等账本损坏，禁止执行写操作：{ledger_file} ({exc})")
+    if (not isinstance(data, dict)
+            or data.get("schema") != LEDGER_SCHEMA_VERSION
+            or not isinstance(data.get("entries"), dict)):
+        raise ExecutorError(f"幂等账本结构非法，禁止执行写操作：{ledger_file}")
+    return data
+
+
+def save_ledger(path: str, ledger: Dict[str, Any]) -> None:
+    """Atomically persist the ledger so a crash cannot leave a half-written file."""
+    ledger_file = Path(path)
+    ledger_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ledger_file.with_suffix(ledger_file.suffix + ".tmp")
+    tmp.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(ledger_file)
 
 
 def render_action(action: Dict[str, Any], index: int) -> str:
@@ -375,7 +413,8 @@ def run(plan: Dict[str, Any], channel: str, apply: bool,
         env: Optional[Dict[str, str]] = None,
         transport: Optional[Any] = None,
         runner: Optional[Any] = None,
-        odoo_version: Optional[str] = None) -> Dict[str, Any]:
+        odoo_version: Optional[str] = None,
+        ledger_path: Optional[str] = None) -> Dict[str, Any]:
     """主入口：版本/契约校验 → 动作过滤 → （可选）执行 → 汇总报告。"""
     version = normalize_version(odoo_version) if odoo_version else None
     if odoo_version and version is None:
@@ -395,8 +434,21 @@ def run(plan: Dict[str, Any], channel: str, apply: bool,
     if apply:
         issues.extend(credential_issues)
 
+    # 幂等账本只在 --apply 时读写；损坏即 fail-closed（不降级为空账本）。
+    ledger: Dict[str, Any] = {"schema": LEDGER_SCHEMA_VERSION, "entries": {}}
+    ledger_loaded = False
+    if apply and ledger_path:
+        try:
+            ledger = load_ledger(ledger_path)
+            ledger_loaded = True
+        except ExecutorError as exc:
+            issues.append(_issue("CT-011", "idempotency_ledger_corrupt", "error", str(exc)))
+
+    plan_id = str(plan.get("plan_id") or plan.get("seed_id") or "default")
     results: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
+    replayed: List[Dict[str, Any]] = []
+    recorded: List[Dict[str, Any]] = []
     if not any(i["severity"] in {"error", "blocked"} for i in issues):
         for index, action in enumerate(actions):
             applies = action_applies(action, version)
@@ -405,8 +457,30 @@ def run(plan: Dict[str, Any], channel: str, apply: bool,
                                 "odoo_versions": action.get("odoo_versions"),
                                 "reason": "version_mismatch"})
                 continue
-            results.append(execute_action(creds, action, channel, dry_run=not apply,
-                                          transport=transport, runner=runner))
+            key = None
+            if apply and ledger_loaded and ledger_path and action.get("method") in WRITE_METHODS:
+                key = _ledger_key(plan_id, index, action)
+                if key in ledger["entries"]:
+                    replayed.append({"index": index, "key": key,
+                                     "method": action.get("method")})
+                    skipped.append({"index": index, "method": action.get("method"),
+                                    "reason": "idempotent_replay", "key": key})
+                    continue
+            outcome = execute_action(creds, action, channel, dry_run=not apply,
+                                     transport=transport, runner=runner)
+            if key and outcome.get("status") == "ok":
+                ledger["entries"][key] = {
+                    "plan_id": plan_id,
+                    "index": index,
+                    "method": action.get("method"),
+                    "idempotency_key": action.get("idempotency_key"),
+                    "recorded_at": datetime.now().isoformat(),
+                }
+                recorded.append({"index": index, "key": key,
+                                 "method": action.get("method")})
+            results.append(outcome)
+        if ledger_loaded and ledger_path and recorded:
+            save_ledger(ledger_path, ledger)
 
     blocked = any(i["severity"] == "blocked" for i in issues)
     errored = any(i["severity"] == "error" for i in issues) or any(
@@ -422,6 +496,12 @@ def run(plan: Dict[str, Any], channel: str, apply: bool,
         "skipped_actions": skipped,
         "issues": issues,
         "results": results,
+        "idempotency": {
+            "ledger": ledger_path if apply else None,
+            "enabled": bool(apply and ledger_path),
+            "replayed": replayed,
+            "recorded": recorded,
+        },
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -436,6 +516,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true",
                         help="真实执行；不加则只做 dry-run（默认且安全）")
     parser.add_argument("--plan", help="动作计划 JSON 路径；缺省时读 stdin")
+    parser.add_argument(
+        "--ledger-path", default=DEFAULT_LEDGER_PATH,
+        help=f"幂等账本路径（运行产物，默认 {DEFAULT_LEDGER_PATH}）；仅 --apply 时读写")
     return parser
 
 
@@ -444,7 +527,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         args = build_parser().parse_args(argv)
         plan = load_plan(args.plan)
         report = run(plan, channel=args.channel, apply=args.apply,
-                     odoo_version=args.odoo_version)
+                     odoo_version=args.odoo_version,
+                     ledger_path=args.ledger_path)
     except ExecutorError as exc:
         print(json.dumps({"status": "error", "issues": [_issue(
             "CT-000", "tool_error", "error", str(exc))]}, ensure_ascii=False, indent=2))

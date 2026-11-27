@@ -1,6 +1,7 @@
 # Odoo 实施技能包建设方案（增量扩展版）
 
-> 状态：P0 契约基座已落地并集成进 CT 注册表；P1 及以后未开始。
+> 状态：P0 契约基座、种子能力族（SEED-001~013）与版本感知执行器已落地；
+> P1~P4 为阶段性建设标签，当前事实以 `skills/odoo-implementation/TODO.md` 与代码为准。
 > 依据：外部实施框架对标分析（机制参照，已归档）；
 > Capability Twin 3.5 基线 `91383fe`（main `0e0dd57`）。
 > **根本约束：不颠覆现有框架。** 不新建平行体系、不改 `6+3+4+N` 编号、不迁移已有文件、不改现有技能契约。
@@ -73,9 +74,9 @@
     └── odoo-implementation/                 # 唯一新增技能包（可回退）
         ├── SKILL.md                         # 沿用现有 frontmatter 约定
         ├── schemas/odoo-implementation.schema.json
-        ├── references/{module-catalog,error-taxonomy,evidence-levels}.md
-        ├── scripts/{validate_odoo_manifest.py,odoo_rpc.py}
-        └── templates/project/{project-state,artifact-index}.json
+        ├── references/{contract-guide,error-taxonomy,evidence-levels,version-compatibility}.md
+        ├── scripts/{validate_odoo_manifest.py,odoo_seed_executor.py,odoo_onboarding.py}
+        └── templates/project/{project-state,artifact-index,seed-actions,base-data-actions,core-services-actions,onboarding-profile}.template.json
 ```
 
 新增技能 `odoo-implementation` 是唯一的结构性变化；它整包位于 `skills/` 下，因此 `npx skills` 安装后 schema、脚本、模板都能到达目标环境。若停用，只需移除该目录并撤掉两处可选钩子，现有流水线原样工作。
@@ -103,7 +104,7 @@
 | P0 契约基座 | 建立可回退的扩展点 | `odoo-implementation` 骨架、schema、校验脚本、两处可选钩子；经 `scripts/discover_capabilities.py` 登记进注册表 | 195 项测试全绿；21 个既有技能在无新字段时校验通过；负例校验返回非零；注册表 21→22 且幂等 |
 | P1 垂直切片 | 用会计模块端到端跑通 | 复用 `shipped_not_invoiced.feature`；保持 CT 原架构，不引入新的分层能力链 | 既有 BDD 门禁照常产出 UAT 与追溯矩阵；G2 通过不等于 G3 的提示仍在 |
 | P2 核心服务 | 收敛 Odoo 外部操作 | `odoo_rpc.py` 单一出口、模块安装、配置参数、CSV/XML 导入 | 模块级技能中直接 RPC 调用点数为 0；缺凭据时返回 `status=blocked` |
-| P3 横向复制 | 扩展到 mrp / sale / stock | 复用 `mo_completion_posting.feature`；按目录登记新能力 | 每个新模块至少 1 个场景；注册表 `capabilities` 节点可枚举 |
+| P3 横向复制 | 扩展到 mrp / sale / stock | 复用 `mo_completion_posting.feature`；按目录登记新能力 | 每个新模块至少 1 个场景；能力索引与场景引用可枚举（`capabilities` 保持空节点，见 §7 决策 6） |
 | P4 治理完善 | 补齐长期维护约束 | 错误分类、重试禁令、证据分级说明 | 负向用例证明失败不会被改成 PASS；文档与执行能力差异显式标注 |
 
 P0 → P1 → P2 串行；P3 必须在 P1、P2 完成后启动；P4 可提前准备文档，但判据以 P1 为准。
@@ -127,6 +128,10 @@ P0 → P1 → P2 串行；P3 必须在 P1、P2 完成后启动；P4 可提前准
 2. 新增独立技能包 `odoo-implementation`，不并入 orchestrator。**已定，P0 已落地。**
 3. 保持 CT 原架构：不引入五层分层能力链，`ct_layer` 维持四层分类标签，**不强制任何技能声明**。已否决五层链方案（曾一度改 schema 为五层，已回退）。
 4. 注册表集成走既有 `scripts/discover_capabilities.py`，`odoo-implementation` 已登记（skills 21→22，`capabilities` 保持空节点）。**已落地并有回归测试锁定。**
-5. 是否在 `6+3+4+N` 工作流图补挂载说明，仍**待确认**。
+5. 不在 `6+3+4+N` 工作流图重复补挂载说明：FDE 检查点见 `references/workflows.md`，
+   BDD 门禁挂载见同文件 Business Scenario Contract，本方案只引用，避免第二套事实源。**已定。**
+6. P3 退出判据中「注册表 `capabilities` 节点可枚举」作废：用户已否决五层能力链，
+   `capabilities` 保持空 `{}` 并由测试锁定；可枚举对象改为 `SKILL.md` §6.1 能力索引与
+   `.feature` 场景引用。**已定（GAP-007 关闭）。**
 
-P0 已完成并集成；P1 及以后按阶段独立回退。
+P0 已完成并集成；种子族、执行器与 P1~P4 的实际状态见 `skills/odoo-implementation/TODO.md`。

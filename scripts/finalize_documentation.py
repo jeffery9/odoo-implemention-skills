@@ -30,8 +30,10 @@ def find_deliverables_dir(root):
     返回 `.../<任意容器>/template-processor/templates/deliverables`。
     找不到时返回 None，由调用方显式失败，不猜测某厂商的默认位置。
     """
-    wanted = Path("/".join(_TEMPLATE_PARTS))
-    for candidate in root.rglob(wanted / "*.md"):
+    # pathlib.rglob() 只接受字符串模式；传 Path 会在 Python 3.11 抛
+    # TypeError: 'PosixPath' object is not subscriptable。
+    wanted = "/".join(_TEMPLATE_PARTS)
+    for candidate in root.rglob(f"{wanted}/*.md"):
         directory = candidate.parent
         if directory.is_dir():
             return directory

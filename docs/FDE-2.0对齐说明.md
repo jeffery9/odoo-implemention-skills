@@ -144,6 +144,17 @@
 > 「消费点的有无」是**。没有消费点，数据来了也无处可去；没有事实源，指标来了也是
 > 精确到天、实际上不存在的数字。
 
+**A 级提升结论（2026-11-27）**：
+- **A-1 已解决**：`GAP_ANALYSIS_REPORT.md` / `HANDOVER_MANIFEST.md` 已加入价值三态与
+  「交付验收 ≠ 价值实现」说明级小节（不新增必填字段）。
+- **A-2 已解决**：`quality-gate` 在报告中标注 `quality_dimension`（只产工程侧证据），
+  `human-review-gatekeeper-agent` 明确双维分列且不得互相替代。
+- **A-3 已解决**：`knowledge-manager retrieve(..., approved_only=true)` 是回流消费点，
+  只消费带 `approved_by` + `source_anchor` 的候选；`capability-extractor-agent` 承担消费义务。
+- **A-4 维持不做**：无价值事件、打点日期与跨项目标识，不实现 Lead Time / TTV；
+  在采集到真实事件前，「—」不得改为 0，也不得跨批次比较。
+- **A-5 已解决**：`CAPABILITY_UNIT_SPEC.md` 复用章节加入适用边界、验证证据与版本三项。
+
 ---
 
 ## 7. 维护约定

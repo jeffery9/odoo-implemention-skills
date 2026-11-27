@@ -12,6 +12,19 @@ The "Intention OS" layer of the Capability Twin framework. It maps human goals t
 - **Module Detection**: Identify Odoo modules (e.g., "sales" -> `sale`, "warehouse" -> `stock`).
 - **Confidence Scoring**: Assess how certain the mapping is and request clarification if needed.
 
+## Boundary with the other intent skills
+This is the **entry point** for intent parsing: it classifies the request and maps it to a
+`6+3+4+N` workflow. It does not compute evidence-backed confidence, nor does it map a
+confirmed intent to capability actions.
+
+- `enhanced-intent-understanding`: use only when the classification needs an explicit
+  confidence derivation and a `mapping_ready` verdict.
+- `intent-to-action-mapper`: use only after `mapping_ready=true`; it maps a confirmed
+  intent to capabilities and never re-judges the intent itself.
+
+The three skills form a one-way chain; do not call the downstream skills from this entry
+point without the upstream verdict.
+
 ## Workflow Integration
 This skill is automatically invoked by the Orchestrator to handle natural language inputs.
 

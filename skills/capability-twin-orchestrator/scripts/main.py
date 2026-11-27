@@ -24,6 +24,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from capability_registry import CapabilityRegistry
+import evidence_gate
 
 # Import new modules
 from config import CapabilityTwinConfig
@@ -233,6 +234,130 @@ class CapabilityTwinOrchestratorSkill:
         # 规格门禁：由 preflight 实例化，后续步骤复用同一次判定结果
         self.bdd_gate: Optional[BDDGate] = None
         self.bdd_run: Dict[str, Any] = {}
+        # 运行态证据闭环：每个被委派的步骤都必须有可校验的证据才能计为成功。
+        self.step_registry: Dict[str, Dict[str, Any]] = {}
+        self.step_aliases: Dict[str, str] = {}
+        self.evidence_base_dir = (
+            framework_paths.workspace_root() if framework_paths is not None else Path.cwd())
+
+    def _step_key(self, step: Any, name: Any = None) -> str:
+        """Stable key for a delegated step, used by evidence submission."""
+        if step is not None and step != "":
+            return f"step:{step}"
+        return f"name:{name}"
+
+    def _register_step(self, step: Any, name: str, result: Dict[str, Any]) -> None:
+        """Register a delegated step so late evidence can close it."""
+        key = self._step_key(step, name)
+        self.step_registry[key] = {
+            "step": step, "name": name, "result": result,
+            "evidence_contract": result.get("evidence_contract", {}),
+        }
+        self.step_aliases[name] = key
+
+    def persist_step_registry(self) -> Optional[str]:
+        """持久化步骤登记到运行目录；失败返回 None，由调用方决定语义。"""
+        try:
+            path = evidence_gate.save_step_registry(
+                self.config.get_output_path(), self.workflow_id,
+                self.step_registry, self.step_aliases, self.evidence_base_dir)
+            return str(path)
+        except evidence_gate.EvidenceStoreError as exc:
+            logger.error(f"步骤登记持久化失败：{exc}")
+            return None
+
+    def restore_step_registry(self, workflow_id: str) -> bool:
+        """从运行目录恢复步骤登记；任何异常均 fail-closed。"""
+        if not evidence_gate.valid_workflow_id(workflow_id):
+            logger.error(f"拒绝恢复步骤登记：非法 workflow_id {workflow_id!r}")
+            return False
+        try:
+            data = evidence_gate.load_step_registry(
+                self.config.get_output_path(), workflow_id)
+        except evidence_gate.EvidenceStoreError as exc:
+            logger.error(f"步骤登记恢复失败：{exc}")
+            return False
+        self.workflow_id = workflow_id
+        self.step_registry = data["step_registry"]
+        self.step_aliases = data["step_aliases"]
+        base = data.get("evidence_base_dir")
+        if isinstance(base, str) and Path(base).is_dir():
+            self.evidence_base_dir = Path(base)
+        # 保持公开结果与内部登记一致，避免 outcome 与 subagent_results 分叉。
+        for entry in self.step_registry.values():
+            if entry.get("name"):
+                self.subagent_results[entry["name"]] = entry["result"]
+        return True
+
+    def _results_from_registry(self) -> List[Dict[str, Any]]:
+        return [
+            {"step": data["step"], "name": data["name"], "result": data["result"]}
+            for data in self.step_registry.values()
+        ]
+
+    def submit_step_evidence(self, step: Any, evidence: Dict[str, Any],
+                             name: Any = None) -> Dict[str, Any]:
+        """Validate submitted evidence and promote a delegated step only on pass."""
+        key = self._step_key(step, name)
+        if key not in self.step_registry and isinstance(name, str):
+            key = self.step_aliases.get(name, key)
+        entry = self.step_registry.get(key)
+        if entry is None:
+            return {
+                "status": "error",
+                "error": f"未找到步骤 {step!r} / {name!r} 的委派记录",
+                "workflow_outcome": self._workflow_outcome(),
+            }
+        result = entry["result"]
+        if not isinstance(result, dict):
+            return {
+                "status": "error", "error": "步骤结果不是对象",
+                "workflow_outcome": self._workflow_outcome(),
+            }
+        report = evidence_gate.validate(
+            evidence, entry["evidence_contract"], base_dir=self.evidence_base_dir)
+        result["evidence_validation"] = report
+        result["evidence"] = {
+            "artifacts": report.get("artifacts", []),
+            "fde_records": report.get("fde_records", []),
+            "submitted_at": report.get("validated_at"),
+        }
+        checkpoint = result.get("fde_checkpoint")
+        if isinstance(checkpoint, dict) and report["status"] == "pass":
+            checkpoint["recorded"] = True
+
+        if report["status"] == "pass":
+            # 只有证据通过，委派结果才可升级为成功；重复提交保持幂等。
+            if result.get("status") in ("pending_instruction", "semantic_wait", "delegated"):
+                result["status"] = "success"
+        else:
+            # 证据不足不得把原状态改写成成功；失败状态也不被证据覆盖。
+            if result.get("status") not in self.FAILED_STATUSES:
+                result["status"] = "delegated"
+
+        if entry["name"]:
+            self.subagent_results[entry["name"]] = result
+
+        # 跨调用入口的登记必须落盘；持久化失败不得让调用方拿到假完成。
+        stored_at = self.persist_step_registry()
+        if stored_at is None:
+            result["status"] = "delegated"
+            return {
+                "status": "error",
+                "error": "证据校验完成但步骤登记无法持久化，状态保持 delegated",
+                "step": entry["step"],
+                "name": entry["name"],
+                "evidence_gate": report,
+                "workflow_outcome": self._workflow_outcome(),
+            }
+        return {
+            "status": report["status"],
+            "step": entry["step"],
+            "name": entry["name"],
+            "evidence_gate": report,
+            "step_registry": stored_at,
+            "workflow_outcome": self._workflow_outcome(),
+        }
 
     # ------------------------------------------------------------------
     # Gherkin BDD 规格门禁
@@ -457,6 +582,18 @@ class CapabilityTwinOrchestratorSkill:
             result["workflow_history"] = self.workflow_history
             result.setdefault("bdd_gate", self.shared_context.get("bdd_gate", {}))
 
+            # 证据回填要在后续调用中完成，步骤登记必须落盘；持久化失败按失败处理，
+            # 不得返回一个无法被证据闭环的 workflow_id。
+            stored_at = self.persist_step_registry()
+            if stored_at is None:
+                result["status"] = "error"
+                result["error"] = "步骤登记持久化失败，证据回填不可用"
+                return result
+            result["step_registry"] = stored_at
+            result["evidence_submission_hint"] = (
+                "execute_skill(operation='submit_step_evidence', workflow_id=..., "
+                "step=..., evidence={...})")
+
             logger.info(f"Completed Capability Twin workflow: {self.workflow_id}")
             return result
 
@@ -588,7 +725,9 @@ class CapabilityTwinOrchestratorSkill:
                 agent_type=step["agent_type"],
                 goal=step["sub_goal"],
                 skills_granted=step["skills_granted"],
-                config=step["config"]
+                config=step["config"],
+                step=step["step"],
+                step_name=step["name"],
             )
 
             # Store result
@@ -684,7 +823,9 @@ class CapabilityTwinOrchestratorSkill:
                 agent_type=step["agent_type"],
                 goal=step["sub_goal"],
                 skills_granted=step["skills_granted"],
-                config=step["config"]
+                config=step["config"],
+                step=step["step"],
+                step_name=step["name"],
             )
 
             # Store result
@@ -799,7 +940,9 @@ class CapabilityTwinOrchestratorSkill:
                 agent_type=step["agent_type"],
                 goal=step["sub_goal"],
                 skills_granted=step["skills_granted"],
-                config=step["config"]
+                config=step["config"],
+                step=step["step"],
+                step_name=step["name"],
             )
 
             # Store result
@@ -990,7 +1133,9 @@ class CapabilityTwinOrchestratorSkill:
                 agent_type=step["agent_type"],
                 goal=step["sub_goal"],
                 skills_granted=step["skills_granted"],
-                config=step["config"]
+                config=step["config"],
+                step=step["step"],
+                step_name=step["name"],
             )
 
             # Store result
@@ -1224,9 +1369,13 @@ class CapabilityTwinOrchestratorSkill:
         return result
 
     def execute_subagent(self, agent_type: str, goal: str,
-                        skills_granted: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+                         skills_granted: List[str], config: Dict[str, Any],
+                         step: Any = None, step_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Execute a sub-agent with specified skills and configuration
+        Execute a sub-agent with specified skills and configuration.
+
+        ``step`` / ``step_name`` are optional so direct callers are unaffected;
+        workflow loops pass them to register the evidence contract.
         """
         try:
             # Prepare parameters for the sub-agent execution
@@ -1257,14 +1406,26 @@ class CapabilityTwinOrchestratorSkill:
             # 否则下游无法判断本步骤受哪些约束、是否挂了 FDE 检查点。
             if isinstance(result, dict):
                 result.setdefault("skills_granted", list(skills_granted))
+                result["evidence_contract"] = evidence_gate.build_contract(
+                    {"step": step, "name": step_name or "", "agent_type": agent_type},
+                    skills_granted, self.workflow_id)
+                result["evidence_validation"] = {
+                    "status": "pending",
+                    "issues": ["尚未提交步骤证据"],
+                }
+                result["evidence_submission"] = (
+                    "调用 submit_step_evidence(step, evidence) 提交 artifacts 与 "
+                    "fde_records；校验通过前本步骤不得声明成功。")
                 if "fde-methodology" in skills_granted:
                     result["fde_checkpoint"] = {
                         "required": True,
                         "checklist": "skills/fde-methodology/SKILL.md §5（9 条）",
                         "record_format": "逐条 pass / fail / n/a + 证据",
-                        # 由执行者在实际复核后置为 True 并附证据；框架不代填
+                        # 由证据门禁在校验通过后回填；框架不代填
                         "recorded": False,
                     }
+                if step is not None or step_name:
+                    self._register_step(step, step_name or agent_type, result)
 
             logger.info(f"Sub-agent {agent_type} executed successfully")
             return result
@@ -1357,38 +1518,52 @@ class CapabilityTwinOrchestratorSkill:
             "timestamp": result.get("timestamp", datetime.now().isoformat())
         }
 
-    # 子步骤状态归一化：只有 success 才算「本步骤已完成」。
-    # delegated 表示指令已下发、等待语义执行（prompt agent 的正常工作方式），
-    # 它不等于完成；failed 表示执行失败或无可用入口。
-    DELEGATED_STATUSES = {"pending_instruction", "semantic_wait", "delegated"}
+    # 子步骤状态归一化：只有「证据校验通过的 success」才算本步骤完成。
+    # delegated 表示指令已下发或证据待提交，它不等于完成；failed 表示执行失败。
+    DELEGATED_STATUSES = {"pending_instruction", "semantic_wait", "delegated", "missing"}
     FAILED_STATUSES = {"error", "failed", "unsupported"}
+    SUCCESS_STATUSES = {"success", "completed", "ok", "pass"}
 
-    def _normalize_step_status(self, status: str) -> str:
-        """把子代理返回的多种状态归一到 success / delegated / failed 三态"""
+    def _normalize_step_status(self, status: str, result: Optional[Dict[str, Any]] = None) -> str:
+        """把子代理状态归一到 success / delegated / failed（证据优先于状态）。"""
         s = (status or "unknown").lower()
         if s in self.DELEGATED_STATUSES:
             return "delegated"
         if s in self.FAILED_STATUSES:
             return "failed"
-        if s in ("success", "completed", "ok"):
+        if s in self.SUCCESS_STATUSES:
+            if isinstance(result, dict):
+                contract = result.get("evidence_contract") or {}
+                validation = result.get("evidence_validation") or {}
+                if contract.get("required", True) and validation.get("status") != "pass":
+                    # 状态声称成功但证据未通过：按委派中处理，不得计为完成。
+                    return "delegated"
+                checklist = result.get("fde_checklist") or []
+                if any(isinstance(i, dict) and i.get("result") == "fail" for i in checklist):
+                    return "delegated"
             return "success"
         return "failed"
 
-    def _workflow_outcome(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _workflow_outcome(self, results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
-        按子步骤真实状态汇总工作流结论。
+        按子步骤真实状态与证据汇总工作流结论。
 
-        规则（避免「全部失败仍报 completed」）：
-        - 全部 success            → completed
+        - 挂载的检查点（step=None）不是子步骤，不进入计数；它们通过 status=blocked 表达。
+        - 全部证据通过的 success → completed
         - 有失败且有成功/委派      → partial
-        - 无 success 但有委派      → delegated（等待语义执行，未完成）
+        - 无 success 但有委派      → delegated（等待语义执行或证据提交）
         - 全部失败                 → failed
         """
+        if results is None or self.step_registry:
+            results = self._results_from_registry()
         counts = {"success": 0, "delegated": 0, "failed": 0}
-        for item in results:
-            counts[self._normalize_step_status((item.get("result") or {}).get("status", ""))] += 1
+        for item in results or []:
+            if item.get("step") is None:
+                continue
+            result = item.get("result") or {}
+            counts[self._normalize_step_status(result.get("status", ""), result)] += 1
 
-        total = len(results)
+        total = sum(counts.values())
         if total and counts["success"] == total:
             status = "completed"
         elif counts["failed"] == total or total == 0:
@@ -1404,7 +1579,8 @@ class CapabilityTwinOrchestratorSkill:
             "steps_completed": counts["success"],
             "steps_delegated": counts["delegated"],
             "steps_failed": counts["failed"],
-            "requires_semantic_execution": counts["delegated"] > 0,
+            "requires_semantic_execution": (
+                counts["delegated"] > 0 or status == "delegated"),
         }
 
 def execute_skill(skill_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -1419,6 +1595,32 @@ def execute_skill(skill_params: Dict[str, Any]) -> Dict[str, Any]:
         if skill_params.get("operation") in ("render_deliverables_bundle", "render_deliverable"):
             banner = CapabilityTwinOrchestratorSkill(config=CapabilityTwinConfig())
             return banner.render_deliverables_bundle(skill_params)
+
+        # 跨调用证据闭环：宿主通过公开入口恢复上一次运行的步骤登记并提交证据。
+        # 每个 operation 独立实例化，登记从运行目录恢复，不依赖进程内状态。
+        operation = skill_params.get("operation")
+        if operation in ("submit_step_evidence", "workflow_outcome"):
+            wid = skill_params.get("workflow_id")
+            if not evidence_gate.valid_workflow_id(wid):
+                return {
+                    "status": "error",
+                    "error": f"非法或缺失 workflow_id：{wid!r}",
+                }
+            session = CapabilityTwinOrchestratorSkill(config=CapabilityTwinConfig())
+            if not session.restore_step_registry(wid):
+                return {
+                    "status": "error",
+                    "error": "步骤登记不存在、损坏或越界；已 fail-closed，不创建空登记",
+                    "workflow_id": wid,
+                }
+            if operation == "workflow_outcome":
+                outcome = session._workflow_outcome()
+                outcome["workflow_id"] = wid
+                return outcome
+            return session.submit_step_evidence(
+                skill_params.get("step"),
+                skill_params.get("evidence") or {},
+                name=skill_params.get("name"))
 
         # Check if we need to perform intent analysis first
         # If the user provided a natural language request without structured parameters

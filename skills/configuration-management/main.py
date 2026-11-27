@@ -23,6 +23,12 @@ class ConfigVersionManager:
     def save_version(self, config_type: str, config_id: str, config_data: Dict[str, Any], author: str = "system") -> str:
         """保存配置版本"""
         version = self._generate_version()
+        # 毫秒时间戳可能在同一毫秒内碰撞；若目标文件已存在，递增版本号，
+        # 保证连续写入产生独立的历史记录，而不是互相覆盖成一条。
+        version_file = self._get_version_file_path(config_type, config_id, version)
+        while os.path.exists(version_file):
+            version = f"v{int(version[1:]) + 1}"
+            version_file = self._get_version_file_path(config_type, config_id, version)
         version_data = {
             'config_data': config_data,
             'metadata': {
@@ -34,7 +40,6 @@ class ConfigVersionManager:
             }
         }
 
-        version_file = self._get_version_file_path(config_type, config_id, version)
         with open(version_file, 'w', encoding='utf-8') as f:
             json.dump(version_data, f, indent=2, ensure_ascii=False)
 

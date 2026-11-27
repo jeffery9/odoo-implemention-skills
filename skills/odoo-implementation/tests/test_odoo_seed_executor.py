@@ -3,8 +3,10 @@
 """种子执行器测试：全部离线，注入假 transport/runner，绝不连真实 Odoo。"""
 
 import json
+import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,8 +14,11 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
 import odoo_seed_executor as E  # noqa: E402
 
-# execute_action 接收内部键名（url/db/user/password），先经 load_credentials 规范化
-FULL_ENV = E.load_credentials({v: "x" for v in E.CREDENTIAL_ENV.values()})
+# 两种凭据形态不可混用：
+# - execute_action 直接接收内部键名（url/db/user/password）→ FULL_ENV
+# - run() 内部会再调 load_credentials()，必须传环境变量名（ODOO_URL/...）→ FULL_ENV_VARS
+FULL_ENV_VARS = {v: "x" for v in E.CREDENTIAL_ENV.values()}
+FULL_ENV = E.load_credentials(FULL_ENV_VARS)
 
 
 class FakeCommon:
@@ -54,7 +59,7 @@ class ExecutorTests(unittest.TestCase):
         # 即使注入会抛异常的 transport，dry-run 也不应调用
         report = E.run(plan([{"method": "create", "model": "res.partner",
                               "idempotency_key": "k", "args": []}]),
-                       "rpc", apply=False, env=FULL_ENV,
+                       "rpc", apply=False, env=FULL_ENV_VARS,
                        transport=transport, runner=None)
         self.assertEqual(report["status"], "pass")
         self.assertEqual(report["mode"], "dry_run")
@@ -76,7 +81,7 @@ class ExecutorTests(unittest.TestCase):
 
     def test_04_write_without_idempotency_blocked(self):
         report = E.run(plan([{"method": "write", "model": "res.partner", "args": []}]),
-                       "rpc", apply=True, env=FULL_ENV)
+                       "rpc", apply=True, env=FULL_ENV_VARS)
         self.assertEqual(report["status"], "blocked")
         codes = {i["code"] for i in report["issues"]}
         self.assertIn("CT-007", codes)
@@ -181,7 +186,7 @@ class ExecutorTests(unittest.TestCase):
     def test_14_json2_channel_and_credentials(self):
         """JSON-2 仅 19 可用、凭据用 API key；请求体为命名参数。"""
         report17 = E.run(plan([{"method": "search", "model": "x"}]), "json2",
-                         apply=False, env=FULL_ENV, odoo_version="17.0")
+                         apply=False, env=FULL_ENV_VARS, odoo_version="17.0")
         self.assertEqual(report17["status"], "error")
         self.assertIn("CT-003", {i["code"] for i in report17["issues"]})
 
@@ -300,6 +305,66 @@ class ExecutorTests(unittest.TestCase):
         report = E.run(data, "rpc", apply=False, env={}, odoo_version="19.0")
         self.assertEqual(report["status"], "pass")
         self.assertEqual(report["executed_count"], len(data["actions"]))
+
+
+    def test_20_idempotency_ledger_prevents_replay(self):
+        """同一计划重放：第二次跳过写操作，不产生新的外部调用。"""
+        tmp = Path(tempfile.mkdtemp())
+        ledger = tmp / "artifacts" / "ledger.json"
+
+        class Combo:
+            def __init__(self):
+                self.calls = []
+
+            def authenticate(self, *args):
+                return 1
+
+            def execute_kw(self, *args):
+                self.calls.append(args)
+                return {"ok": True}
+
+        action = {"method": "write", "model": "res.partner",
+                  "idempotency_key": "SEED-TEST:partner:A",
+                  "args": [[1], {"name": "A"}]}
+        first_transport = Combo()
+        first = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV_VARS,
+                      transport=first_transport, ledger_path=str(ledger))
+        self.assertEqual(first["status"], "pass")
+        self.assertEqual(len(first_transport.calls), 1)
+        self.assertEqual(len(first["idempotency"]["recorded"]), 1)
+
+        replay_transport = Combo()
+        second = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV_VARS,
+                       transport=replay_transport, ledger_path=str(ledger))
+        self.assertEqual(second["status"], "pass")
+        self.assertEqual(len(replay_transport.calls), 0)
+        self.assertEqual(second["executed_count"], 0)
+        self.assertEqual(second["skipped_actions"][0]["reason"], "idempotent_replay")
+        self.assertEqual(len(second["idempotency"]["replayed"]), 1)
+
+    def test_21_corrupt_ledger_fails_closed(self):
+        """账本损坏不得降级为空账本，必须 CT-011 error 且零执行。"""
+        tmp = Path(tempfile.mkdtemp())
+        ledger = tmp / "artifacts" / "ledger.json"
+        ledger.parent.mkdir(parents=True)
+        ledger.write_text("{not json", encoding="utf-8")
+        report = E.run(plan([{"method": "write", "model": "x",
+                              "idempotency_key": "k"}]),
+                       "rpc", apply=True, env=FULL_ENV_VARS, ledger_path=str(ledger))
+        self.assertEqual(report["status"], "error")
+        self.assertIn("CT-011", {i["code"] for i in report["issues"]})
+        self.assertEqual(report["executed_count"], 0)
+
+    def test_22_every_seed_card_has_verified_version_row(self):
+        """GAP-008 守卫：13 张能力卡都有版本差异行，且无「尚未核实」占位。"""
+        text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+        cards = re.split(r"^#### (SEED-\d+)", text, flags=re.M)
+        pairs = [(cards[i], cards[i + 1]) for i in range(1, len(cards), 2)]
+        self.assertEqual(len(pairs), 13)
+        for seed, body in pairs:
+            self.assertIn("| 版本差异 |", body, f"{seed} 缺版本差异行")
+            self.assertNotIn("尚未核实", body, f"{seed} 仍标注未核实")
+            self.assertNotIn("待核实", body, f"{seed} 仍标注待核实")
 
 
 if __name__ == "__main__":

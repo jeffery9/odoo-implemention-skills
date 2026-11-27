@@ -36,4 +36,11 @@
 - ⚠️ **风险 B**: {{pitfall_b}}
 
 ---
+
+## 5. 证据与溯源 (Evidence & Traceability)
+- **结论依据**: {{evidence_basis}}
+- **源码/材料锚点**: {{source_anchor}}
+- **验收记录**: {{acceptance_record}}
+
+---
 *Capability Twin 3.5 | Implementation Specialist Tool*

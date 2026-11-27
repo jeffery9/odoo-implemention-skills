@@ -11,9 +11,9 @@
 
 ## 1. 框架概述 (Framework Overview)
 
-**Capability Twin 3.5** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 18 个专业子智能体和 22 个原子技能有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
+**Capability Twin 3.5** 是一个专为 Odoo 19 本地化与合规性研究设计的、意图驱动的 **Odoo AI 软件工厂（AI Software Factory）** 核心引擎。它通过先进的 **Agentic Mesh（智能体网格）** 架构，将 18 个专业子智能体和 20 个原子技能有机结合，实现了从“源码挖掘（SCM/MRP/Financial）”到“业务 Gap 对标”再到“方案及代码自动交付”的全生命周期自动化。
 
-准确的技能/智能体数量以能力注册表为准（`skills/capability-twin-orchestrator/capability_registry.json`，当前 22 skills / 18 agents）；本数字随注册表达成变化时更新，维护约束见 `docs/项目维护指南.md` §3。
+准确的技能/智能体数量以能力注册表为准（`skills/capability-twin-orchestrator/capability_registry.json`，当前 20 skills / 18 agents）；本数字随注册表达成变化时更新，维护约束见 `docs/项目维护指南.md` §3。
 
 ---
 
@@ -178,13 +178,13 @@ UAT 脚本、追溯矩阵与自动化步骤定义均由工具派生，交付模�
 
 ## 10. 安装与分发（npx skills）
 
-本仓库遵循 Agent Skills 开放格式：22 个技能平铺于 `skills/<name>/SKILL.md`，
+本仓库遵循 Agent Skills 开放格式：20 个技能平铺于 `skills/<name>/SKILL.md`，
 无需额外清单文件，`skills` CLI 可直接发现。
 
 ### 10.1 安装命令
 
 ```bash
-# 整套安装（推荐）：22 个技能一次装齐，技能间依赖天然可解析
+# 整套安装（推荐）：20 个技能一次装齐，技能间依赖天然可解析
 npx skills add <owner>/<repo> --all
 
 # 装到用户级（跨项目可用）
@@ -210,7 +210,7 @@ npx skills add <owner>/<repo> --all --copy
 
 实测（`npx skills add <repo> --all --copy -a claude-code -y`，记录于新增 `odoo-implementation`
 之前，故为 21 个技能）：CLI 报告 `Found 21 skills`，装完后 `./skills` 与 `.claude/skills`
-各 21 份；当前技能数见 §1（22 个）。注意 `--all` 在该 CLI 中表示
+各 21 份；当前技能数见 §1（20 个）。注意 `--all` 在该 CLI 中表示
 **所有技能 × 所有已检测 agent**，会生成多个 agent 目录；只想装一个 agent 时用 `-a claude-code`。
 
 ### 10.2 必须整套安装的原因
@@ -232,7 +232,7 @@ npx skills add <owner>/<repo> --all --copy
 ```
 
 可独立单装的能力：`quality-gate`、`file-operations`、`data-exchange`、
-`configuration-management`、`cache-management`、`knowledge-manager`、`json-canvas`、`obsidian-bases` 等。
+`configuration-management`、`cache-management`、`knowledge-manager` 等。
 
 ### 10.3 运行前提
 

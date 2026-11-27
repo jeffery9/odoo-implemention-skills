@@ -169,6 +169,20 @@ def good_function():
         self.assertEqual(metadata["check_type"], "documentation_quality")
         self.assertEqual(metadata["status"], "success")
 
+    def test_quality_dimension_is_engineering_only(self):
+        """双维质量分离：质量门不得声称自己裁定业务价值（FDE §15.2）。"""
+        test_file = os.path.join(self.test_dir, "dimension_doc.md")
+        with open(test_file, 'w', encoding='utf-8') as f:
+            f.write("# 测试文档\n\n正文。\n")
+        result = self.gate.execute({
+            "check_type": "documentation_quality",
+            "target_path": test_file,
+        })
+        dim = result["results"]["quality_dimension"]
+        self.assertEqual(dim["type"], "engineering_quality")
+        self.assertFalse(dim["decides_value_realization"])
+        self.assertIn("human-review-gatekeeper", dim["must_not_substitute"])
+
     def test_invalid_check_type(self):
         """测试无效检查类型"""
         config = {

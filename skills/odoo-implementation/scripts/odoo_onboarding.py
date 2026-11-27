@@ -219,7 +219,8 @@ def run_onboarding(profile: Dict[str, Any], profile_path: str, apply: bool,
                    env: Optional[Dict[str, str]] = None,
                    executor_run: Callable = executor.run,
                    transport: Optional[Any] = None,
-                   runner: Optional[Any] = None) -> Dict[str, Any]:
+                   runner: Optional[Any] = None,
+                   ledger_path: Optional[str] = executor.DEFAULT_LEDGER_PATH) -> Dict[str, Any]:
     """逐阶段执行：默认 dry-run；--apply 才真实写入；阶段失败即停（链式 fail-closed）。"""
     issues = validate_profile(profile)
     version = executor.normalize_version(profile.get("odoo_version"))
@@ -254,7 +255,8 @@ def run_onboarding(profile: Dict[str, Any], profile_path: str, apply: bool,
             plan = executor.load_plan(str(plan_path))
             report = executor_run(plan, channel=channel, apply=apply, env=env,
                                   transport=transport, runner=runner,
-                                  odoo_version=profile.get("odoo_version"))
+                                  odoo_version=profile.get("odoo_version"),
+                                  ledger_path=ledger_path)
         except executor.ExecutorError as exc:
             stopped_at = seed
             phase_reports.append({"seed_id": seed, "status": "error", "plan": plan_ref,
@@ -298,6 +300,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "run":
             child.add_argument("--apply", action="store_true",
                                help="真实执行；不加则只做 dry-run（默认且安全）")
+            child.add_argument("--ledger-path", default=executor.DEFAULT_LEDGER_PATH,
+                               help=f"幂等账本路径（默认 {executor.DEFAULT_LEDGER_PATH}）")
     return parser
 
 
@@ -312,7 +316,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.command == "check":
         report = check(profile, args.profile)
     else:
-        report = run_onboarding(profile, args.profile, apply=args.apply)
+        report = run_onboarding(profile, args.profile, apply=args.apply,
+                                ledger_path=args.ledger_path)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 1 if report["status"] in {"blocked", "error"} else 0
 

@@ -316,15 +316,26 @@ class QualityGate:
             raise ValueError(f"不支持的检查类型: {check_type}")
 
         if check_type == "code_quality":
-            return self._check_code_quality(config)
+            result = self._check_code_quality(config)
         elif check_type == "standard_compliance":
-            return self._validate_standards(config)
+            result = self._validate_standards(config)
         elif check_type == "quality_gate":
-            return self._enforce_quality_gate(config)
+            result = self._enforce_quality_gate(config)
         elif check_type == "documentation_quality":
-            return self._check_documentation_quality(config)
-        elif check_type == "scenario_spec":
-            return self._check_scenario_spec(config)
+            result = self._check_documentation_quality(config)
+        else:  # scenario_spec
+            result = self._check_scenario_spec(config)
+
+        # FDE §15.2 双维质量分离：本技能只产出工程侧证据（含场景规格的工程一致性），
+        # 业务质量/价值裁定属于 human-review-gatekeeper，不得由本结果替代。
+        if isinstance(result, dict):
+            result.setdefault("results", {})["quality_dimension"] = {
+                "type": "business_quality" if check_type == "scenario_spec" else "engineering_quality",
+                "decides_value_realization": False,
+                "must_not_substitute": "human-review-gatekeeper-agent 的业务质量裁定",
+                "basis": "FDE 2.0 §15.2 / §5.5",
+            }
+        return result
 
     def _resolve_check_scope(self, target_path: str) -> str:
         """

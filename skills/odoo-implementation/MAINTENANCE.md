@@ -17,11 +17,12 @@
 | `scripts/odoo_seed_executor.py` | 种子动作**单一执行出口**，版本感知 | 通道、版本矩阵、过滤逻辑 | `references/version-compatibility.md`、SKILL.md CLI、执行器测试、模板 |
 | `scripts/odoo_onboarding.py` | 项目 onboarding **编排层**：profile 解析、依赖排序、逐阶段委派、链式 fail-closed | 排序规则、profile 契约、门禁；**不得新增 RPC/凭据逻辑** | SKILL.md §4 CLI/§6.4、onboarding profile 模板、编排器测试；执行器语义变更时同步委派调用 |
 | `references/contract-guide.md` | 字段语义与迁移指引 | 语义说明 | schema 与校验脚本 |
-| `references/error-taxonomy.md` | 10 类失败分类与重试禁令 | **仅随分类体系变更** | 执行器 issue code、所有引用它的文档 |
+| `references/error-taxonomy.md` | 11 类失败分类与重试禁令 | **仅随分类体系变更** | 执行器 issue code、所有引用它的文档 |
 | `references/evidence-levels.md` | 证据分级与 G2/G3/FDE 边界 | **仅随证据体系变更** | SKILL.md 证据边界表述 |
-| `references/version-compatibility.md` | 17/18/19 初始化差异、通道矩阵、动作版本契约、核心服务方法差异 | 核实过的版本差异 | 执行器 `SUPPORTED_VERSIONS`/通道矩阵/写方法白名单/JSON-2 映射、模板版本分化、SKILL.md 版本敏感卡（SEED-001/003/004） |
+| `references/version-compatibility.md` | 17/18/19 初始化差异、通道矩阵、动作版本契约、核心服务方法差异 | 核实过的版本差异 | 执行器 `SUPPORTED_VERSIONS`/通道矩阵/写方法白名单/JSON-2 映射、模板版本分化、SKILL.md 全部 13 张能力卡的「版本差异」行 |
 | `templates/project/*.json` | 动作计划与项目状态模板 | 按业务方确认的数据填充结构 | 对应测试断言、SKILL.md 目录契约 |
 | `tests/*.py` | 离线自测（不连真实 Odoo） | 正负例、变异验证 | 被测代码 |
+| 工作区 `artifacts/idempotency_ledger.json` | `--apply` 幂等账本（运行产物，不入库、不随技能分发） | 由执行器原子写入；人工确认后可清理 | 执行器账本格式、重放语义、`CT-011` 失败分类 |
 
 不变量：**结构与职责一一对应**。新增文件必须在本表登记；本表不登记的文件不得存在。
 
@@ -49,8 +50,10 @@
 1. 通道、版本矩阵、凭据要求以 `references/version-compatibility.md` 为事实源；执行器不得出现与文档不一致的版本判断。
 2. 新增通道必须定义：支持的版本范围、必需环境变量、dry-run 行为、错误分类映射、退出码。
 3. 所有外部写操作必须带 `idempotency_key`；缺键判 `CT-007 blocked`，且不得自动重试。
-4. 凭据只能从环境变量读取，禁止写入动作计划、日志或报告。
-5. 测试必须全离线：注入假 `transport` / `runner`，绝不连真实 Odoo。
+4. `--apply` 必须通过幂等账本判定重放：键 = 计划 ID + 动作序号 + 幂等键；仅成功写入才记账；
+   账本损坏判 `CT-011 error` 并零执行，不得降级为空账本。账本是用户工作区运行产物。
+5. 凭据只能从环境变量读取，禁止写入动作计划、日志或报告。
+6. 测试必须全离线：注入假 `transport` / `runner`，绝不连真实 Odoo。
 
 ### 2.4 版本升级（SKILL.md `version`）
 
@@ -129,8 +132,8 @@ grep -c '^#### SEED-' skills/odoo-implementation/SKILL.md
 | 技能包版本 | 0.4.0 |
 | 支持 Odoo 版本 | 17.0 / 18.0 / 19.0 |
 | 种子能力 | SEED-001~013 |
-| 注册表 | skills 22 / agents 18 / capabilities 空 |
-| 全量测试 | 210 passed（基线 `3df9f5f`） |
-| 执行器测试 | 15 项，全离线 |
+| 注册表 | skills 20 / agents 18 / capabilities 空 |
+| 全量测试 | 待 CI 复核（A 级改动新增多组测试，旧基线 `210 passed` 于 `3df9f5f` 已失效） |
+| 执行器测试 | 22 项，全离线 |
 
 基线更新规则：仅在合并进 main 后更新本表，并注明对应 merge commit。
