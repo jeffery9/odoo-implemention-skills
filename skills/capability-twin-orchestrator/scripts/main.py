@@ -31,6 +31,7 @@ from config import CapabilityTwinConfig
 from file_operations import SafeFileUpdater, validate_module_name
 from errors import ErrorHandler, WorkflowError, ErrorSeverity
 from bdd_gate import BDDGate, SCENARIO_DEPENDENT_TEMPLATES
+import ontology_context
 try:
     import framework_paths
 except ImportError:  # pragma: no cover - 独立部署时不应发生，但不阻断核心流程
@@ -427,6 +428,76 @@ class CapabilityTwinOrchestratorSkill:
             result["reason"] = f"{type(exc).__name__}: {exc}"
         return result
 
+    def _ontology_context(self, params: Dict[str, Any],
+                          target_module: str) -> Dict[str, Any]:
+        """
+        把本体作为只读语义上下文挂到 shared_context（不新增阶段、不改变门禁）。
+
+        - 默认启用；显式 `ontology.enabled=false` 才关闭。
+        - 仓库布局可用；copy 安装无本体产物时标 `unavailable` + open-question，
+          不得静默当作"没有差异"。
+        - 子图有界（max_nodes）且带物理锚点；它是推理输入，不是步骤证据。
+        """
+        raw = params.get("ontology")
+        cfg: Dict[str, Any] = raw if isinstance(raw, dict) else {}
+        enabled = bool(cfg.get("enabled", True))
+
+        scripts_dir: Optional[Path] = None
+        ontology_dir: Optional[Path] = None
+        error: Optional[str] = None
+        if framework_paths is None:
+            error = "framework_paths 不可用"
+        else:
+            try:
+                scripts_dir = framework_paths.ontology_scripts_dir()
+                ontology_dir = framework_paths.ontology_dir()
+            except Exception as exc:  # SkillNotFound / OSError 均降级为不可用
+                error = f"{type(exc).__name__}: {exc}"
+        if cfg.get("ontology_dir"):
+            ontology_dir = Path(str(cfg["ontology_dir"])).expanduser().resolve()
+
+        try:
+            context = ontology_context.build_context(
+                ontology_dir=ontology_dir,
+                ontology_scripts_dir=scripts_dir or Path("."),
+                target_module=target_module,
+                enabled=enabled,
+                model=cfg.get("model"),
+                carrier=cfg.get("carrier"),
+                version=cfg.get("version"),
+                hops=int(cfg.get("hops", 1)),
+                max_nodes=int(cfg.get("max_nodes", ontology_context.DEFAULT_MAX_NODES)),
+            )
+        except Exception as exc:
+            context = {
+                "status": "unavailable", "enabled": enabled, "source": None,
+                "query": {"module": target_module},
+                "subgraph": {"nodes": [], "edges": [], "truncated": False},
+                "anchors": [],
+                "open_questions": [f"ontology adapter error: {type(exc).__name__}: {exc}"],
+                "consumption": "read-only reasoning context; not step evidence",
+            }
+        if error and context["status"] != "disabled":
+            context["status"] = "unavailable"
+            context["open_questions"] = sorted(set(context["open_questions"] + [error]))
+
+        self.shared_context["ontology"] = context
+        if self.file_tracker:
+            self.file_tracker.add_notes(
+                "Ontology context (preflight)",
+                "status={status} module={module} nodes={nodes}/{total} anchors={anchors} "
+                "source={source}".format(
+                    status=context["status"],
+                    module=target_module,
+                    nodes=context["subgraph"].get("returned_nodes", 0),
+                    total=context["subgraph"].get("total_nodes", 0),
+                    anchors=len(context.get("anchors", [])),
+                    source=context.get("source"),
+                ),
+            )
+        logger.info("Ontology context: %s", ontology_context.summary(context))
+        return context
+
     def _bdd_preflight(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         流程启动前的规格门禁（G2 前置条件）。
@@ -562,6 +633,11 @@ class CapabilityTwinOrchestratorSkill:
                     "workflow_history": self.workflow_history,
                 }
 
+            # ---- 本体语义上下文：只读投影，挂到 shared_context 供所有子代理消费 ----
+            # 不改变门禁判定，也不新增阶段；无产物时标 open-question 而非假绿。
+            ontology = self._ontology_context(workflow_params, target_module)
+            self.shared_context["ontology_summary"] = ontology_context.summary(ontology)
+
             # Execute based on workflow type
             workflow_type = workflow_params.get("workflow_type", "full_analysis")
 
@@ -581,6 +657,8 @@ class CapabilityTwinOrchestratorSkill:
             result["final_shared_context"] = self.shared_context
             result["workflow_history"] = self.workflow_history
             result.setdefault("bdd_gate", self.shared_context.get("bdd_gate", {}))
+            result.setdefault("ontology_context",
+                              self.shared_context.get("ontology_summary", {}))
 
             # 证据回填要在后续调用中完成，步骤登记必须落盘；持久化失败按失败处理，
             # 不得返回一个无法被证据闭环的 workflow_id。
@@ -1360,6 +1438,10 @@ class CapabilityTwinOrchestratorSkill:
             "context_overrides": overridden,
             "timestamp": datetime.now().isoformat(),
         }
+
+        # 本体上下文摘要：交付物可回溯到语义锚点；不新增模板、不改变 status
+        ontology = self._ontology_context(params, target_module or "")
+        result["ontology_context"] = ontology_context.summary(ontology)
 
         # 可选：登记 Odoo 契约校验摘要；不改变 status，也不新增交付模板
         contract = self._odoo_contract_check(params)
