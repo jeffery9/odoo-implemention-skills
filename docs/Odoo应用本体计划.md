@@ -451,7 +451,9 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 | 位置 | 行为 |
 |---|---|
 | `execute_workflow` preflight 之后 | 调用 `_ontology_context()`，写入 `shared_context["ontology"]` |
-| `execute_subagent` | 既有 `shared_context` 透传，所有子代理自动拿到同一子图 |
+| `execute_subagent` | 既有 `shared_context` 透传，并下发步骤级 `ontology_contract`；所有子代理拿到同一子图与消费要求 |
+| `capability_registry` | prompt agent 指令中直接附带 `ontology_context` 与 `ontology_contract`，不再只给 `shared_context_keys` |
+| `evidence_gate` | 校验 `ontology_consumption` 的指纹、mode、node_id、anchor 与说明/理由 |
 | `render_deliverables_bundle` | 结果附 `ontology_context` 指纹，交付物可回溯锚点 |
 | `framework_paths` | 新增 `ontology_dir()` / `ontology_scripts_dir()`，路径不依赖 CWD |
 
@@ -479,7 +481,30 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 ### 12.4 不变量
 
 - 不填充 `capabilities: {}`，GAP-007 锁定不变；
-- 不新增 pytest 用例，CI 基线保持 `265 passed`；集成检查折进
-  `build_ontology.py --self-test` 的 CI 步骤；
-- 本体子图只是推理输入，不替代步骤证据、FDE 记录或源码锚点；
+- 不新增 pytest 用例，全量测试数仍以 `docs/项目维护指南.md` §1 为唯一事实源；
+  集成检查折进 CI 的 `build_ontology.py --self-test` 与
+  `check_ontology_contract.py --self-test` 步骤；
+- 本体子图只是推理输入，不替代步骤证据、FDE 记录或源码锚点；但它的**消费记录**
+  `ontology_consumption` 是步骤证据的一部分，缺失即 `delegated`；
 - `ontology/` 仍是派生产物，禁止手改，哈希守卫不变。
+
+### 12.5 消费闭环（BD-02 收口）
+
+`shared_context["ontology"]` 可达只解决“AI 能看到”。要证明“AI 确实在用”，
+编排器在每次委派时同时给出 `ontology_contract`：
+
+| 字段 | 作用 |
+|---|---|
+| `required` / `status` | 步骤必须交代消费；mode 必须与当前本体状态一致 |
+| `fingerprint` | 绑定本步骤实际看到的子图，过期或猜测值直接拒绝 |
+| `allowed_modes` | `ok` → `used` / `not_applicable`；其余状态 → 同名 mode |
+| `allowed_node_ids` / `allowed_anchors` | `used` 只能引用子图内节点与物理锚点 |
+
+提交证据时 `evidence_gate` 同时校验 artifacts、FDE 与本体消费记录：
+`used` 必须给出子图内 `node_ids`、匹配 `source_anchors` 和具体 `statement`；
+确不适用时用 `not_applicable` 写明理由；`open-question` / `unavailable` /
+`disabled` 如实确认，不得伪造节点。任何失败都保持步骤 `delegated`，不得 `success`。
+
+`workflow_outcome.ontology_consumption` 汇总 `required_steps / validated / pending`
+及各 mode 计数。CI 的 `scripts/check_ontology_contract.py --self-test` 静态确认
+18 个 AGENT.md 与编排器接线，并功能验证“缺记录 / 过期指纹 / 伪造节点”全部拒绝。

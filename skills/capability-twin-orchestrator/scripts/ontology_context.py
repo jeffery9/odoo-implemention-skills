@@ -15,12 +15,23 @@ Hard rules:
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
 DEFAULT_MAX_NODES = 40
+
+# 每个步骤都必须显式交代它如何对待本体上下文；语义执行者不得沉默略过。
+CONSUMPTION_MODES = ("used", "not_applicable", "open-question", "unavailable", "disabled")
+ALLOWED_MODES_BY_STATUS = {
+    "ok": ("used", "not_applicable"),
+    "open-question": ("open-question",),
+    "unavailable": ("unavailable",),
+    "disabled": ("disabled",),
+}
 
 
 class OntologyUnavailable(RuntimeError):
@@ -131,4 +142,66 @@ def summary(context: dict[str, Any]) -> dict[str, Any]:
         "anchor_count": len(context.get("anchors", [])),
         "open_question_count": len(context.get("open_questions", [])),
         "truncated": subgraph.get("truncated", False),
+    }
+
+
+def fingerprint(context: Any) -> str:
+    """Bind a consumption record to the exact subgraph the agent was given.
+
+    Only identifiers are hashed: the fingerprint is stable across runs with the
+    same ontology snapshot, but changes when the module, node set or anchors
+    change.  It is not a security boundary — it is drift detection.
+    """
+    ctx = context if isinstance(context, dict) else {}
+    subgraph = ctx.get("subgraph") if isinstance(ctx.get("subgraph"), dict) else {}
+    nodes = subgraph.get("nodes") or []
+    node_ids = sorted(
+        node["id"] for node in nodes
+        if isinstance(node, dict) and isinstance(node.get("id"), str)
+    )
+    anchors = sorted(
+        {node["source_anchor"] for node in nodes
+         if isinstance(node, dict) and isinstance(node.get("source_anchor"), str)}
+    )
+    query = ctx.get("query") if isinstance(ctx.get("query"), dict) else {}
+    payload = {
+        "status": ctx.get("status") or "unavailable",
+        "module": query.get("module"),
+        "source": ctx.get("source"),
+        "node_ids": node_ids,
+        "anchors": anchors,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
+def consumption_contract(context: Any) -> dict[str, Any]:
+    """Contract every delegated step must satisfy before it can be 'success'."""
+    ctx = context if isinstance(context, dict) else {}
+    status = ctx.get("status") or "unavailable"
+    subgraph = ctx.get("subgraph") if isinstance(ctx.get("subgraph"), dict) else {}
+    nodes = subgraph.get("nodes") or []
+    node_ids = sorted(
+        node["id"] for node in nodes
+        if isinstance(node, dict) and isinstance(node.get("id"), str)
+    )
+    anchors = sorted(
+        {node["source_anchor"] for node in nodes
+         if isinstance(node, dict) and isinstance(node.get("source_anchor"), str)}
+    )
+    query = ctx.get("query") if isinstance(ctx.get("query"), dict) else {}
+    return {
+        "required": True,
+        "status": status,
+        "module": query.get("module"),
+        "fingerprint": fingerprint(ctx),
+        "allowed_modes": list(ALLOWED_MODES_BY_STATUS.get(status, ("unavailable",))),
+        "allowed_node_ids": node_ids,
+        "allowed_anchors": anchors,
+        "output_field": "ontology_consumption",
+        "note": (
+            "status=ok 时 mode=used 必须引用本契约内的 node_id/anchor 并写明用了什么；"
+            "确不适用时 mode=not_applicable 必须给出理由。其余状态只做如实确认。"
+        ),
     }

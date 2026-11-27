@@ -9,6 +9,36 @@ input_parameters: ["target_module", "solution_scope", "change_scope"]
 
 # 解决方案构建大师 (Solution Builder Master)
 
+
+## Ontology consumption contract (mandatory)
+
+The orchestrator injects a bounded ontology subgraph as `shared_context["ontology"]`
+and a step-specific `ontology_contract` into the invocation payload. Read both before
+reasoning and return an `ontology_consumption` object in the step result:
+
+```json
+{
+  "fingerprint": "<ontology_contract.fingerprint>",
+  "mode": "used | not_applicable | open-question | unavailable | disabled",
+  "node_ids": ["<node_id from ontology_contract.allowed_node_ids>"],
+  "anchors": ["<source_anchor from ontology_contract.allowed_anchors>"],
+  "statement": "mode=used: which framework-level relation or logic carrier supported this step",
+  "reason": "non-used mode: why no ontology citation is claimed"
+}
+```
+
+Rules:
+- `status=ok`: use `mode=used` with at least one in-subgraph `node_id`, one matching
+  `source_anchor` and a concrete `statement`. If this step genuinely does not reason
+  about Odoo application structure, use `mode=not_applicable` with a specific
+  `reason` instead of inventing a citation.
+- `status=open-question|unavailable|disabled`: copy the status as `mode` and give a
+  `reason`; never fabricate nodes/anchors and never claim semantic evidence.
+- The fingerprint must come from `ontology_contract`; a stale or guessed value is
+  rejected by the evidence gate.
+- Ontology context is read-only reasoning input. It never replaces step artifacts,
+  source anchors, FDE records or the `.feature` spec.
+
 ## 🎯 Agent描述
 
 解决方案构建大师是Capability Twin 2.1框架中的高级编排器，负责自动化构建、实施和管理Odoo解决方案。该Agent集成了现有的14个Domain Agents和13个Reusable Skills，提供端到端的解决方案构建能力，并集成轻量级敏捷治理能力。

@@ -71,6 +71,13 @@ execute_skill({
                        "anchor": "addons/account/models/account_move.py:L128"}],
         "fde_records": [{"item": i, "result": "pass|fail|n/a", "evidence": "..."}
                         for i in range(1, 10)],
+        "ontology_consumption": {
+            "fingerprint": "<ontology_contract.fingerprint>",
+            "mode": "used",
+            "node_ids": ["<allowed_node_id>"],
+            "anchors": ["<allowed source_anchor>"],
+            "statement": "本体子图中的哪条框架级关系支撑了本步骤结论"
+        },
     },
 })
 ```
@@ -82,10 +89,13 @@ process alive. `operation=workflow_outcome` with the same `workflow_id` re-reads
 outcome. A missing, corrupt or out-of-bounds registry fails closed: no empty registry is
 created, and the step stays `delegated`.
 
-`evidence_gate` checks artifact existence, non-empty files, traceability anchors and the
-9-item FDE checklist. Only a `pass` report promotes the step to `success` and fills
-`fde_checkpoint.recorded=true`; a `fail` item blocks promotion. `status=completed` is
-returned only when all steps are evidence-validated.
+`evidence_gate` checks artifact existence, non-empty files, traceability anchors, the
+9-item FDE checklist and `ontology_consumption`. Only a `pass` report promotes the step
+to `success` and fills `fde_checkpoint.recorded=true`; any `fail` item blocks promotion.
+`status=completed` is returned only when all steps are evidence-validated.
+`workflow_outcome.ontology_consumption` reports required / validated / pending steps and
+the per-mode counts, so "the ontology was reachable" can never be confused with
+"agents actually used it".
 
 ## 5. Ontology Context Layer (read-only)
 
@@ -102,6 +112,7 @@ ACLs and Python/View/OWL logic) instead of rediscovering it from scattered sourc
 | `anchors` | Sorted `file:line` / `file:record:xmlid` anchors for citation |
 | `open_questions` | Unresolved bindings or "ontology not built"; never fabricated |
 | `consumption` | `read-only reasoning context; not step evidence` |
+| `ontology_contract` | Step-level binding: `fingerprint`, `allowed_modes`, `allowed_node_ids`, `allowed_anchors` |
 
 Rules:
 
@@ -110,10 +121,17 @@ Rules:
 - No manifest or no query script ⇒ `status=unavailable` + `open-question`. An unbuilt
   ontology is **not** an empty green graph.
 - Explicit `ontology.enabled=false` is the only way to disable it; drafts must say so.
-- `ontology_context` is reasoning input only. It never promotes a step, never satisfies
-  evidence gate checks and never changes workflow `status`.
+- The subgraph itself is reasoning input only: it never replaces a step artifact, source
+  anchor, FDE record or `.feature` spec, and its `status` never changes workflow `status`.
+- Its **usage record** is mandatory. Every delegated step receives `ontology_contract`
+  and must return `ontology_consumption` bound to that contract's fingerprint:
+  `mode=used` cites in-subgraph `node_ids` + `source_anchors` plus a concrete `statement`;
+  `mode=not_applicable` requires a specific `reason`; `open-question` / `unavailable` /
+  `disabled` must be reported honestly. Missing, stale or fabricated records fail the
+  evidence gate and keep the step `delegated`.
 
-The result carries `ontology_context` (a small fingerprint); the full subgraph stays in
+The result carries `ontology_context` (a small fingerprint) and
+`workflow_outcome.ontology_consumption` (closure counts); the full subgraph stays in
 `final_shared_context["ontology"]`.
 
 ## Best Practices

@@ -98,11 +98,12 @@ def load_step_registry(base_dir: Path, workflow_id: str) -> Dict[str, Any]:
 
 
 def build_contract(step: Any, skills_granted: Optional[Iterable[str]] = None,
-                   workflow_id: Optional[str] = None) -> Dict[str, Any]:
+                   workflow_id: Optional[str] = None,
+                   ontology: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Build the evidence contract attached to a delegated step."""
     skills = set(skills_granted or ())
     info = step if isinstance(step, dict) else {"step": step}
-    return {
+    contract = {
         "required": True,
         "workflow_id": workflow_id,
         "step": info.get("step"),
@@ -113,6 +114,86 @@ def build_contract(step: Any, skills_granted: Optional[Iterable[str]] = None,
         "required_anchors": 1 if "source-traceability" in skills else 0,
         "fde_items": list(FDE_ITEMS) if "fde-methodology" in skills else [],
     }
+    if ontology is not None:
+        contract["ontology"] = ontology
+    return contract
+
+
+def validate_ontology_consumption(record: Any,
+                                  contract: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate that a step really accounted for the ontology context it received.
+
+    The ontology never counts as step evidence by itself.  This check only
+    certifies the *usage record*: the agent referenced nodes/anchors from the
+    exact subgraph it was given, or explicitly declared an applicable reason.
+    """
+    issues: List[str] = []
+    validated: Dict[str, Any] = {
+        "status": "fail", "issues": issues,
+        "mode": None, "node_ids": [], "anchors": [],
+    }
+    if not contract.get("required", False):
+        validated["status"] = "not_required"
+        return validated
+    if not isinstance(record, dict):
+        issues.append("缺少 ontology_consumption 对象")
+        return validated
+
+    expected_fp = contract.get("fingerprint")
+    actual_fp = record.get("fingerprint")
+    if not isinstance(expected_fp, str) or actual_fp != expected_fp:
+        issues.append(
+            f"本体上下文指纹不匹配：期望 {expected_fp!r}，实际 {actual_fp!r}")
+
+    mode = record.get("mode")
+    allowed_modes = contract.get("allowed_modes") or []
+    if mode not in allowed_modes:
+        issues.append(f"ontology_consumption.mode 无效：{mode!r}（允许 {allowed_modes}）")
+    validated["mode"] = mode
+
+    node_ids = record.get("node_ids") or []
+    anchors = record.get("anchors") or []
+    if not isinstance(node_ids, list) or any(not isinstance(i, str) for i in node_ids):
+        issues.append("ontology_consumption.node_ids 必须是字符串数组")
+        node_ids = []
+    if not isinstance(anchors, list) or any(not isinstance(i, str) for i in anchors):
+        issues.append("ontology_consumption.anchors 必须是字符串数组")
+        anchors = []
+    allowed_nodes = set(contract.get("allowed_node_ids") or [])
+    allowed_anchors = set(contract.get("allowed_anchors") or [])
+    unknown_nodes = sorted(set(node_ids) - allowed_nodes)
+    unknown_anchors = sorted(set(anchors) - allowed_anchors)
+    if unknown_nodes:
+        issues.append(f"引用了不在本体子图中的 node_id：{unknown_nodes}")
+    if unknown_anchors:
+        issues.append(f"引用了不在本体子图中的 anchor：{unknown_anchors}")
+    validated["node_ids"] = sorted(set(node_ids) & allowed_nodes)
+    validated["anchors"] = sorted(set(anchors) & allowed_anchors)
+
+    def text_field(name: str, minimum: int = 10) -> str:
+        value = record.get(name)
+        if not isinstance(value, str) or len(value.strip()) < minimum:
+            issues.append(f"ontology_consumption.{name} 缺失或过短（至少 {minimum} 字）")
+            return ""
+        return value.strip()
+
+    if mode == "used":
+        if not validated["node_ids"]:
+            issues.append("mode=used 必须至少引用一个子图内的 node_id")
+        if not validated["anchors"]:
+            issues.append("mode=used 必须至少引用一个子图内的 source_anchor")
+        statement = text_field("statement")
+        if statement:
+            validated["statement"] = statement
+    elif mode in ("not_applicable", "open-question", "unavailable", "disabled"):
+        reason = text_field("reason")
+        if reason:
+            validated["reason"] = reason
+        if node_ids or anchors:
+            issues.append(f"mode={mode} 不得引用本体节点或锚点")
+
+    validated["status"] = "pass" if not issues else "fail"
+    return validated
 
 
 def _resolve(base_dir: Path, raw: Any) -> Optional[Path]:
@@ -145,6 +226,7 @@ def validate(evidence: Any, contract: Any,
         "validated_at": datetime.now().isoformat(),
         "artifacts": [],
         "fde_records": [],
+        "ontology_consumption": {"status": "not_required", "issues": []},
     }
     if not isinstance(evidence, dict):
         issues.append("证据必须是对象")
@@ -236,6 +318,13 @@ def validate(evidence: Any, contract: Any,
         if missing:
             issues.append(f"FDE 检查项缺失：{missing}")
 
+    ontology_contract = contract.get("ontology")
+    if isinstance(ontology_contract, dict) and ontology_contract.get("required", False):
+        ontology_report = validate_ontology_consumption(
+            evidence.get("ontology_consumption"), ontology_contract)
+        validated["ontology_consumption"] = ontology_report
+        issues.extend(ontology_report["issues"])
+
     validated["status"] = "pass" if not issues else (
         "error" if validated["status"] == "error" else "fail")
     return validated
@@ -248,4 +337,5 @@ def summarize_step(result: Dict[str, Any]) -> Dict[str, Any]:
         "evidence_contract": result.get("evidence_contract", {}),
         "evidence_validation": result.get("evidence_validation", {}),
         "fde_checkpoint": result.get("fde_checkpoint", {}),
+        "ontology_consumption": result.get("ontology_consumption", {}),
     }

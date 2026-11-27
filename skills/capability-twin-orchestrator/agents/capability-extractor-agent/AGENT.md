@@ -8,6 +8,36 @@ input_parameters: ["target_module", "granularity", "feature_scope"]
 
 # Capability Extractor Agent
 
+
+## Ontology consumption contract (mandatory)
+
+The orchestrator injects a bounded ontology subgraph as `shared_context["ontology"]`
+and a step-specific `ontology_contract` into the invocation payload. Read both before
+reasoning and return an `ontology_consumption` object in the step result:
+
+```json
+{
+  "fingerprint": "<ontology_contract.fingerprint>",
+  "mode": "used | not_applicable | open-question | unavailable | disabled",
+  "node_ids": ["<node_id from ontology_contract.allowed_node_ids>"],
+  "anchors": ["<source_anchor from ontology_contract.allowed_anchors>"],
+  "statement": "mode=used: which framework-level relation or logic carrier supported this step",
+  "reason": "non-used mode: why no ontology citation is claimed"
+}
+```
+
+Rules:
+- `status=ok`: use `mode=used` with at least one in-subgraph `node_id`, one matching
+  `source_anchor` and a concrete `statement`. If this step genuinely does not reason
+  about Odoo application structure, use `mode=not_applicable` with a specific
+  `reason` instead of inventing a citation.
+- `status=open-question|unavailable|disabled`: copy the status as `mode` and give a
+  `reason`; never fabricate nodes/anchors and never claim semantic evidence.
+- The fingerprint must come from `ontology_contract`; a stale or guessed value is
+  rejected by the evidence gate.
+- Ontology context is read-only reasoning input. It never replaces step artifacts,
+  source anchors, FDE records or the `.feature` spec.
+
 把「功能」拆成**可独立描述、可验证、可复用**的能力单元。
 硬性要求：不得停在 Feature 层，每个能力必须拆出 3–5 个 Level-2 逻辑块。
 本层产出是注册中心与交付包的最小资产单位。
