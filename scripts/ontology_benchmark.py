@@ -33,6 +33,7 @@ sys.path.insert(0, str(ORCHESTRATOR_SCRIPTS))
 from ontology_lib.builder import build  # noqa: E402
 from ontology_lib.core import REPO_ROOT, SCHEMA_PATH, SCOPE_PATH, load_json  # noqa: E402
 import ontology_context as oc  # noqa: E402
+import evidence_gate as eg  # noqa: E402
 
 FIXTURE_SOURCE = REPO / "tests" / "fixtures" / "ontology_source"
 SCRIPTS = REPO / "scripts"
@@ -125,6 +126,49 @@ def run_benchmark() -> dict[str, Any]:
             ontology_dir=out, ontology_scripts_dir=SCRIPTS,
             target_module="absent_module")
 
+        # End-to-end: a real "ok" ontology context must let a genuine `used`
+        # consumption record pass the evidence gate, while a fabricated node
+        # is rejected.  This closes the "used never tested in a real task" gap.
+        ok_ctx = oc.build_context(
+            ontology_dir=out, ontology_scripts_dir=SCRIPTS, target_module=MODULE)
+        contract = eg.build_contract(
+            {"step": 1, "name": "Ontology Benchmark",
+             "agent_type": "ontology-benchmark"},
+            ["source-traceability", "fde-methodology"], "bench",
+            ontology=oc.consumption_contract(ok_ctx))
+        ok_nodes = ok_ctx["subgraph"]["nodes"]
+        genuine_node = ok_nodes[0]
+        with tempfile.TemporaryDirectory() as evidence_tmp:
+            evidence_dir = Path(evidence_tmp)
+            artifact = evidence_dir / "ontology.md"
+            artifact.write_text("# ontology benchmark evidence\n", encoding="utf-8")
+            base_evidence: dict[str, Any] = {
+                "workflow_id": "bench",
+                "step": 1,
+                "artifacts": [{
+                    "path": str(artifact), "kind": "report",
+                    "anchor": genuine_node["source_anchor"],
+                }],
+                "fde_records": [
+                    {"item": i, "result": "pass", "evidence": f"benchmark proof {i}"}
+                    for i in eg.FDE_ITEMS
+                ],
+            }
+            genuine = dict(base_evidence)
+            genuine["ontology_consumption"] = {
+                "fingerprint": oc.fingerprint(ok_ctx),
+                "mode": "used",
+                "node_ids": [genuine_node["id"]],
+                "anchors": [genuine_node["source_anchor"]],
+                "statement": "本体子图把视图载体绑定到模型，用于定位结构入口",
+            }
+            pass_report = eg.validate(genuine, contract, base_dir=evidence_dir)
+
+            fabricated = dict(base_evidence)
+            fabricated["ontology_consumption"] = dict(genuine["ontology_consumption"])
+            fabricated["ontology_consumption"]["node_ids"] = ["model.ghost.does_not_exist"]
+            reject_report = eg.validate(fabricated, contract, base_dir=evidence_dir)
+
         report: dict[str, Any] = {
             "fixture": str(FIXTURE_SOURCE.relative_to(REPO)),
             "manifest": {
@@ -168,6 +212,12 @@ def run_benchmark() -> dict[str, Any]:
                 "unbuilt_status": unbuilt["status"],
                 "absent_status": absent["status"],
             },
+            "consumption_e2e": {
+                "ontology_status": ok_ctx["status"],
+                "allowed_modes": oc.consumption_contract(ok_ctx)["allowed_modes"],
+                "genuine_used_status": pass_report["status"],
+                "fabricated_node_status": reject_report["status"],
+            },
             "tasks": task_rows,
         }
 
@@ -193,6 +243,13 @@ def run_benchmark() -> dict[str, Any]:
             issues.append("unbuilt ontology did not degrade honestly")
         if report["honesty"]["absent_status"] != "open-question":
             issues.append("absent module did not degrade honestly")
+        ce = report["consumption_e2e"]
+        if ce["ontology_status"] != "ok" or "used" not in ce["allowed_modes"]:
+            issues.append("real ontology did not enable used mode")
+        if ce["genuine_used_status"] != "pass":
+            issues.append("genuine used consumption was rejected")
+        if ce["fabricated_node_status"] != "fail":
+            issues.append("fabricated node consumption was accepted")
         report["issues"] = issues
         report["status"] = "pass" if not issues else "fail"
         return report
