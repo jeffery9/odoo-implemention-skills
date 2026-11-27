@@ -2,6 +2,7 @@
 capability_twin_runs/
 kb/shards/
 kb/mem/
+artifacts/
 *.log
 
 # Python
@@ -20,3 +21,8 @@ venv/
 # 本地覆盖
 .env
 *.local
+
+# 仓库级 CI 配置必须入库；覆盖全局 ~/.gitignore_global 的 ".*" 规则
+!/.github/
+!/.github/workflows/
+!/.github/workflows/ci.yml

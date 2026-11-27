@@ -1,0 +1,43 @@
+name: framework-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Static compile
+        run: python -m compileall -q skills scripts tests conftest.py
+
+      - name: Full test suite
+        run: python -m pytest -q
+
+      - name: Registry rebuild is idempotent
+        run: |
+          python scripts/discover_capabilities.py
+          R=skills/capability-twin-orchestrator/capability_registry.json
+          H1=$(sha256sum "$R" | cut -d' ' -f1)
+          python scripts/discover_capabilities.py >/dev/null
+          H2=$(sha256sum "$R" | cut -d' ' -f1)
+          test -n "$H1" && test "$H1" = "$H2"
+
+      - name: Install-layout self check
+        run: python skills/capability-twin-orchestrator/scripts/framework_paths.py
+
+      - name: Gherkin spec gate
+        run: python skills/gherkin-bdd/scripts/gherkin_gate.py validate skills/gherkin-bdd/features
