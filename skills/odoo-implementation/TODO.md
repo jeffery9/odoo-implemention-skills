@@ -79,7 +79,7 @@
 
 ### GAP-008 · 质量守卫未覆盖「执行器幂等账本」与「版本标注完整性」 · P2
 
-- **现状**：现有守卫——`test_no_hardcoded_paths.py`（路径）、`test_registry_integration.py`（版本/引用闭合）、执行器 15 项离线测试。但无守卫检查：① SEED 卡的「版本差异」行是否存在且与模板 `odoo_versions` 一致；② GAP-001 修复后的幂等账本行为。
+- **现状（修复前）**：现有守卫——`test_no_hardcoded_paths.py`（路径）、`test_registry_integration.py`（版本/引用闭合）、执行器离线自测（项数以 CI 结果为准）。但无守卫检查：① SEED 卡的「版本差异」行是否存在且与模板 `odoo_versions` 一致；② GAP-001 修复后的幂等账本行为。
 - **建议动作**：在 `tests/test_odoo_seed_executor.py` 增加「能力卡版本行 ↔ 模板版本标注」一致性断言；账本实现后补重放测试。
 - **完成判据**：manifest 版本漂移与模板版本标注缺失都能让测试变红（变异验证）。
 - **状态**：DONE（幂等账本重放/损坏测试 `test_20`/`test_21`；版本行守卫 `test_22`；依赖 GAP-001/GAP-005 已关闭）
@@ -104,14 +104,14 @@
 
 | 编号 | 完成内容 | 完成提交 |
 |---|---|---|
-| GAP-001 | 执行器新增幂等账本（计划 ID + 动作序号 + 幂等键），成功写入才记账；重放即 `skipped`；账本损坏 `CT-011` error 且零执行 | 待提交 |
-| GAP-003 | 新增 `base_initialization.feature`（SCN-BAS-001~004），覆盖 SEED-004~011；MRP 场景以 `@ct-seed=SEED-013` 建立引用 | 待提交 |
-| GAP-005 | 13/13 能力卡补齐「版本差异」行与核实范围；`version-compatibility.md` §2.4 登记组织/编号/会计底座 | 待提交 |
-| GAP-006 | 规划文档状态行、目标结构文件名、P3 判据与决策 5/6 与代码对齐 | 待提交 |
-| GAP-007 | 正式记录 `capabilities` 空节点决策，P3 可枚举判据作废 | 待提交 |
-| GAP-008 | 新增幂等账本与版本标注守卫测试（test_20~22） | 待提交 |
-| GAP-002 | P2 核心服务三类能力落地：SEED-001 模块安装（`button_immediate_install`）、SEED-002 配置参数（`set_param`）、SEED-003 CSV/XML 导入（`import_data`）；新增 `core-services-actions.template.json`、执行器写白名单与 JSON-2 映射、`version-compatibility.md` §3、3 项离线测试（执行器 15→18）；索引与定义卡 13/13。模块安装按版本标注 `odoo_versions`，未指定版本 fail-closed。 | 待提交 |
-| GAP-009 | SEED-009 定义卡声明覆盖产品，但动作模板原先只有客户导入；补齐 `product.category` 与 `product.template` 建档动作、按编码读回核对、幂等键与 shell_code；SEED-009 卡明确产品编码唯一性与计量单位引用判据，`version-compatibility.md` §2.3 记录「字段未逐版本核实 + staging 验证」口径；新增 1 项离线测试。 | 待提交 |
+| GAP-001 | 执行器新增幂等账本（计划 ID + 动作序号 + 幂等键），成功写入才记账；重放即 `skipped`；账本损坏 `CT-011` error 且零执行 | `ee5b90f` |
+| GAP-003 | 新增 `base_initialization.feature`（SCN-BAS-001~004），覆盖 SEED-004~011；MRP 场景以 `@ct-seed=SEED-013` 建立引用 | `ee5b90f` |
+| GAP-005 | 13/13 能力卡补齐「版本差异」行与核实范围；`version-compatibility.md` §2.4 登记组织/编号/会计底座 | `ee5b90f` |
+| GAP-006 | 规划文档状态行、目标结构文件名、P3 判据与决策 5/6 与代码对齐 | `ee5b90f` |
+| GAP-007 | 正式记录 `capabilities` 空节点决策，P3 可枚举判据作废 | `ee5b90f` |
+| GAP-008 | 新增幂等账本与版本标注守卫测试（test_20~22） | `ee5b90f` |
+| GAP-002 | P2 核心服务三类能力落地：SEED-001 模块安装（`button_immediate_install`）、SEED-002 配置参数（`set_param`）、SEED-003 CSV/XML 导入（`import_data`）；新增 `core-services-actions.template.json`、执行器写白名单与 JSON-2 映射、`version-compatibility.md` §3、核心服务离线测试；索引与定义卡 13/13。模块安装按版本标注 `odoo_versions`，未指定版本 fail-closed。 | `501cf48` |
+| GAP-009 | SEED-009 定义卡声明覆盖产品，但动作模板原先只有客户导入；补齐 `product.category` 与 `product.template` 建档动作、按编码读回核对、幂等键与 shell_code；SEED-009 卡明确产品编码唯一性与计量单位引用判据，`version-compatibility.md` §2.3 记录「字段未逐版本核实 + staging 验证」口径；新增 1 项离线测试。 | `501cf48` |
 
 ---
 
