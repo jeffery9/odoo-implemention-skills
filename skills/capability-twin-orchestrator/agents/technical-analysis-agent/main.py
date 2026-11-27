@@ -26,7 +26,11 @@ def main():
         source_root_str = os.environ.get("ODOO_SOURCE_PATH")
         
         if not source_root_str:
-            payload = {"status": "error", "message": "ODOO_SOURCE_PATH environment variable not set"}
+            payload = {
+                "status": "unavailable",
+                "reason_code": "ODOO_SOURCE_PATH_MISSING",
+                "message": "缺少 ODOO 源码路径，等待提供源码后再执行技术分片",
+            }
             payload.update(_ontology_binding(params))
             print(json.dumps(payload, ensure_ascii=False))
             return
@@ -51,7 +55,11 @@ def main():
         
         module_path = next((p for p in [source_root/"addons"/target_module, source_root/"odoo"/"addons"/target_module] if p.exists()), None)
         if not module_path:
-            payload = {"status": "error", "message": f"Module {target_module} not found"}
+            payload = {
+                "status": "unavailable",
+                "reason_code": "TARGET_MODULE_NOT_FOUND",
+                "message": f"源码中未找到目标模块 {target_module}，等待确认模块名或源码路径",
+            }
             payload.update(_ontology_binding(params))
             print(json.dumps(payload, ensure_ascii=False))
             return

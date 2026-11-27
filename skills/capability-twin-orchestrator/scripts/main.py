@@ -335,7 +335,9 @@ class CapabilityTwinOrchestratorSkill:
                 result["status"] = "success"
         else:
             # 证据不足不得把原状态改写成成功；失败状态也不被证据覆盖。
-            if result.get("status") not in self.FAILED_STATUSES:
+            # unavailable 表示外部输入未就绪，保留它以便汇聚时如实计数。
+            if (result.get("status") not in self.FAILED_STATUSES
+                    and result.get("status") != "unavailable"):
                 result["status"] = "delegated"
 
         if entry["name"]:
@@ -1614,10 +1616,16 @@ class CapabilityTwinOrchestratorSkill:
         }
 
     # 子步骤状态归一化：只有「证据校验通过的 success」才算本步骤完成。
-    # delegated 表示指令已下发或证据待提交，它不等于完成；failed 表示执行失败。
-    DELEGATED_STATUSES = {"pending_instruction", "semantic_wait", "delegated", "missing"}
+    # delegated 表示指令已下发、证据待提交或外部输入未就绪（unavailable），不等于完成；
+    # failed 表示执行本身失败。环境缺源码等外部阻塞属于等待，不冒充失败也不冒充成功。
+    DELEGATED_STATUSES = {
+        "pending_instruction", "semantic_wait", "delegated", "missing", "unavailable",
+    }
     FAILED_STATUSES = {"error", "failed", "unsupported"}
     SUCCESS_STATUSES = {"success", "completed", "ok", "pass"}
+    ENV_BLOCKED_REASON_CODES = {
+        "ODOO_SOURCE_PATH_MISSING", "TARGET_MODULE_NOT_FOUND",
+    }
 
     def _normalize_step_status(self, status: str, result: Optional[Dict[str, Any]] = None) -> str:
         """把子代理状态归一到 success / delegated / failed（证据优先于状态）。"""
@@ -1652,6 +1660,7 @@ class CapabilityTwinOrchestratorSkill:
         if results is None or self.step_registry:
             results = self._results_from_registry()
         counts = {"success": 0, "delegated": 0, "failed": 0}
+        env_blocked = 0
         ontology_closure = {
             "required_steps": 0,
             "validated": 0,
@@ -1663,6 +1672,9 @@ class CapabilityTwinOrchestratorSkill:
                 continue
             result = item.get("result") or {}
             counts[self._normalize_step_status(result.get("status", ""), result)] += 1
+            if (result.get("status") == "unavailable" or
+                    result.get("reason_code") in self.ENV_BLOCKED_REASON_CODES):
+                env_blocked += 1
 
             contract = result.get("evidence_contract") or {}
             binding = contract.get("ontology") or {}
@@ -1695,6 +1707,7 @@ class CapabilityTwinOrchestratorSkill:
             "steps_completed": counts["success"],
             "steps_delegated": counts["delegated"],
             "steps_failed": counts["failed"],
+            "steps_environment_blocked": env_blocked,
             "ontology_consumption": ontology_closure,
             "requires_semantic_execution": (
                 counts["delegated"] > 0 or status == "delegated"),

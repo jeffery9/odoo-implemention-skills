@@ -509,3 +509,18 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 `workflow_outcome.ontology_consumption` 汇总 `required_steps / validated / pending`
 及各 mode 计数。CI 的 `scripts/check_ontology_contract.py --self-test` 静态确认
 18 个 AGENT.md 与编排器接线，并功能验证“缺记录 / 过期指纹 / 伪造节点”全部拒绝。
+
+### 12.6 规格对齐与环境阻塞语义
+
+消费契约的行为规格落在
+`skills/gherkin-bdd/features/framework/ontology_consumption.feature`（5 个场景，
+覆盖 `used` / `not_applicable` / 越界引用 / 版本漂移 / `unavailable` 如实确认）。
+`check_ontology_contract.py` 会解析该规格并校验场景 ID 齐全，规格被删除或改坏时
+守卫失败——规格层与实现层不再各自漂移。
+
+缺少 `ODOO_SOURCE_PATH` 或目标模块属于**外部输入未就绪**，两个源码型代理
+（`ecosystem-discovery-agent` / `technical-analysis-agent`）返回
+`status=unavailable` + `reason_code`，而不是 `error`。编排器将 `unavailable`
+归一为 `delegated`（等待，不计失败），并在汇聚结果里用
+`steps_environment_blocked` 单独计数。这样既不会把“未执行”误报成“执行失败”，
+也不会冒充已完成的语义证据；`requires_semantic_execution` 仍为 true。

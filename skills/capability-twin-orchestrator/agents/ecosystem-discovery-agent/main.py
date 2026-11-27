@@ -27,7 +27,11 @@ def main():
         source_root_str = os.environ.get("ODOO_SOURCE_PATH") or shared_context.get("odoo_source_path", "")
         
         if not source_root_str:
-            payload = {"status": "error", "message": "ODOO_SOURCE_PATH not found"}
+            payload = {
+                "status": "unavailable",
+                "reason_code": "ODOO_SOURCE_PATH_MISSING",
+                "message": "缺少 ODOO 源码路径（环境变量或共享上下文），等待提供源码后再执行生态发现",
+            }
             payload.update(_ontology_binding(params))
             print(json.dumps(payload, ensure_ascii=False))
             return

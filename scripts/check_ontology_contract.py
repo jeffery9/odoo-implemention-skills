@@ -24,11 +24,18 @@ from typing import Any
 REPO = Path(__file__).resolve().parent.parent
 ORCHESTRATOR = REPO / "skills" / "capability-twin-orchestrator"
 AGENTS_DIR = ORCHESTRATOR / "agents"
+SPEC_PATH = (REPO / "skills" / "gherkin-bdd" / "features" / "framework"
+             / "ontology_consumption.feature")
+EXPECTED_SCENARIO_IDS = (
+    "SCN-FWK-001", "SCN-FWK-002", "SCN-FWK-003", "SCN-FWK-004", "SCN-FWK-005",
+)
 sys.path.insert(0, str(REPO / "scripts"))
 sys.path.insert(0, str(ORCHESTRATOR / "scripts"))
+sys.path.insert(0, str(REPO / "skills" / "gherkin-bdd" / "scripts"))
 
 import evidence_gate as eg  # noqa: E402
 import ontology_context as oc  # noqa: E402
+import gherkin_gate  # noqa: E402
 
 AGENT_MARKERS = (
     'shared_context["ontology"]',
@@ -78,6 +85,33 @@ def check_static() -> list[str]:
         missing = [marker for marker in markers if marker not in text]
         if missing:
             errors.append(f"{path.relative_to(REPO)} 未接好本体消费闭环：{missing}")
+
+    degraded_agents = ("ecosystem-discovery-agent", "technical-analysis-agent")
+    for name in degraded_agents:
+        path = AGENTS_DIR / name / "main.py"
+        text = path.read_text("utf-8")
+        missing = [marker for marker in ('"status": "unavailable"',
+                                         "reason_code") if marker not in text]
+        if missing:
+            errors.append(f"{name} 未以 unavailable 降级：{missing}")
+    orchestrator = (ORCHESTRATOR / "scripts" / "main.py").read_text("utf-8")
+    if '"unavailable"' not in orchestrator or "steps_environment_blocked" not in orchestrator:
+        errors.append("编排器未把环境阻塞归一为 delegated 并计数")
+    return errors
+
+
+def check_spec() -> list[str]:
+    """The BDD spec must describe the consumption contract that code enforces."""
+    errors: list[str] = []
+    if not SPEC_PATH.exists():
+        return [f"缺少本体消费行为规格：{SPEC_PATH.relative_to(REPO)}"]
+    report = gherkin_gate.validate(SPEC_PATH)
+    if report.get("status") != "pass":
+        errors.append(f"本体消费规格门禁未通过：{report.get('errors')}")
+    ids = {row.get("id") for row in report.get("scenario_index", [])}
+    missing = [sid for sid in EXPECTED_SCENARIO_IDS if sid not in ids]
+    if missing:
+        errors.append(f"本体消费规格缺少场景：{missing}")
     return errors
 
 
@@ -201,7 +235,7 @@ def main() -> int:
     if not args.self_test:
         parser.error("请显式运行 --self-test")
 
-    errors = check_static()
+    errors = check_static() + check_spec()
     if errors:
         print("ontology consumption guard: FAIL", file=sys.stderr)
         for error in errors:
@@ -210,7 +244,7 @@ def main() -> int:
     self_test_functional()
     agent_count = expected_agent_count()
     print(f"ontology consumption guard: PASS (agents={agent_count}, modes=4, "
-          f"fail-closed checks=4)")
+          f"fail-closed checks=4, spec scenarios={len(EXPECTED_SCENARIO_IDS)})")
     return 0
 
 
