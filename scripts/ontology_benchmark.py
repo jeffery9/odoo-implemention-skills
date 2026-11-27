@@ -169,6 +169,38 @@ def run_benchmark() -> dict[str, Any]:
             fabricated["ontology_consumption"]["node_ids"] = ["model.ghost.does_not_exist"]
             reject_report = eg.validate(fabricated, contract, base_dir=evidence_dir)
 
+            # Gate verdicts are not enough: the orchestrator must also refuse
+            # to promote a delegated step to `success` on a forged consumption
+            # record.  Exercise the real submit_step_evidence state machine,
+            # not a reimplementation, and record only statuses (no timestamps)
+            # so the benchmark report stays byte-for-byte deterministic.
+            import main as ct  # noqa: E402  (late import avoids import-time side effects)
+            original_config = ct.CapabilityTwinConfig
+            ct.CapabilityTwinConfig = lambda: original_config(
+                output_directory=str(evidence_dir / "runs"))
+            try:
+                orch = ct.CapabilityTwinOrchestratorSkill()
+                orch.evidence_base_dir = evidence_dir
+                orch.step_registry["step:1"] = {
+                    "step": 1, "name": "Ontology Benchmark",
+                    "result": {"status": "delegated"},
+                    "evidence_contract": contract,
+                }
+                orch.step_aliases["Ontology Benchmark"] = "step:1"
+                state_statuses: dict[str, dict[str, str]] = {}
+                for label, evidence in (
+                        ("genuine_used", genuine),
+                        ("fabricated_used", fabricated),
+                        ("missing_consumption", base_evidence)):
+                    orch.step_registry["step:1"]["result"]["status"] = "delegated"
+                    submission = orch.submit_step_evidence(1, evidence)
+                    state_statuses[label] = {
+                        "gate": str(submission.get("status")),
+                        "step": str(orch.step_registry["step:1"]["result"]["status"]),
+                    }
+            finally:
+                ct.CapabilityTwinConfig = original_config
+
         report: dict[str, Any] = {
             "fixture": str(FIXTURE_SOURCE.relative_to(REPO)),
             "manifest": {
@@ -217,6 +249,7 @@ def run_benchmark() -> dict[str, Any]:
                 "allowed_modes": oc.consumption_contract(ok_ctx)["allowed_modes"],
                 "genuine_used_status": pass_report["status"],
                 "fabricated_node_status": reject_report["status"],
+                "promotion": state_statuses,
             },
             "tasks": task_rows,
         }
@@ -250,6 +283,16 @@ def run_benchmark() -> dict[str, Any]:
             issues.append("genuine used consumption was rejected")
         if ce["fabricated_node_status"] != "fail":
             issues.append("fabricated node consumption was accepted")
+        promotion = ce["promotion"]
+        expected_promotion = {
+            "genuine_used": {"gate": "pass", "step": "success"},
+            "fabricated_used": {"gate": "fail", "step": "delegated"},
+            "missing_consumption": {"gate": "fail", "step": "delegated"},
+        }
+        for label, expected in expected_promotion.items():
+            if promotion.get(label) != expected:
+                issues.append(
+                    f"promotion {label}: expected {expected}, got {promotion.get(label)}")
         report["issues"] = issues
         report["status"] = "pass" if not issues else "fail"
         return report

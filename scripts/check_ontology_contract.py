@@ -104,7 +104,8 @@ def check_static() -> list[str]:
     else:
         bench_text = benchmark.read_text("utf-8")
         for marker in ("def run_benchmark", "framework_nodes_seen", "focus",
-                       "consumption_e2e", "genuine_used_status"):
+                       "consumption_e2e", "genuine_used_status", "promotion",
+                       "submit_step_evidence"):
             if marker not in bench_text:
                 errors.append(f"语义基准缺少标记：{marker}")
     ci_text = (REPO / ".github" / "workflows" / "ci.yml").read_text("utf-8")
