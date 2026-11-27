@@ -63,6 +63,16 @@ def check_static() -> list[str]:
         missing = [marker for marker in AGENT_MARKERS if marker not in text]
         if missing:
             errors.append(f"{path.relative_to(REPO)} 缺少本体消费标记：{missing}")
+
+    entrypoints = sorted(AGENTS_DIR.rglob("main.py"))
+    if not entrypoints:
+        errors.append("未找到任何 agent main.py，无法确认本体字段透传")
+    for path in entrypoints:
+        text = path.read_text("utf-8")
+        missing = [marker for marker in ("_ontology_binding", '"ontology_context"',
+                                         '"ontology_contract"') if marker not in text]
+        if missing:
+            errors.append(f"{path.relative_to(REPO)} 未透传本体字段：{missing}")
     for path, markers in WIRING_MARKERS.items():
         text = path.read_text("utf-8")
         missing = [marker for marker in markers if marker not in text]

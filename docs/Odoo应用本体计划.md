@@ -453,6 +453,7 @@ WP5 落地 §11.7 查询接口与 §11.3 的 link；WP6 落地 §11.6 CI 接线�
 | `execute_workflow` preflight 之后 | 调用 `_ontology_context()`，写入 `shared_context["ontology"]` |
 | `execute_subagent` | 既有 `shared_context` 透传，并下发步骤级 `ontology_contract`；所有子代理拿到同一子图与消费要求 |
 | `capability_registry` | prompt agent 指令中直接附带 `ontology_context` 与 `ontology_contract`，不再只给 `shared_context_keys` |
+| `agents/*/main.py` | 带 Python 入口的 8 个 agent 同样把 `ontology_context` / `ontology_contract` 透传到 `instructions` 同级，避免只给 AGENT.md 文本却拿不到指纹 |
 | `evidence_gate` | 校验 `ontology_consumption` 的指纹、mode、node_id、anchor 与说明/理由 |
 | `render_deliverables_bundle` | 结果附 `ontology_context` 指纹，交付物可回溯锚点 |
 | `framework_paths` | 新增 `ontology_dir()` / `ontology_scripts_dir()`，路径不依赖 CWD |

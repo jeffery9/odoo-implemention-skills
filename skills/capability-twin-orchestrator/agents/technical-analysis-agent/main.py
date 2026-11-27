@@ -10,15 +10,25 @@ if str(_scripts) not in sys.path:
     sys.path.insert(0, str(_scripts))
 import framework_paths
 
+def _ontology_binding(params):
+    shared = params.get("shared_context") if isinstance(params.get("shared_context"), dict) else {}
+    return {
+        "ontology_context": params.get("ontology_context") or shared.get("ontology"),
+        "ontology_contract": params.get("ontology_contract"),
+    }
+
 def main():
     if len(sys.argv) < 2: return
+    params = {}
     try:
         params = json.loads(sys.argv[1])
         target_module = params.get("target_module") or params.get("config", {}).get("target_module")
         source_root_str = os.environ.get("ODOO_SOURCE_PATH")
         
         if not source_root_str:
-            print(json.dumps({"status": "error", "message": "ODOO_SOURCE_PATH environment variable not set"}))
+            payload = {"status": "error", "message": "ODOO_SOURCE_PATH environment variable not set"}
+            payload.update(_ontology_binding(params))
+            print(json.dumps(payload, ensure_ascii=False))
             return
         
         source_root = Path(source_root_str)
@@ -41,7 +51,9 @@ def main():
         
         module_path = next((p for p in [source_root/"addons"/target_module, source_root/"odoo"/"addons"/target_module] if p.exists()), None)
         if not module_path:
-            print(json.dumps({"status": "error", "message": f"Module {target_module} not found"}))
+            payload = {"status": "error", "message": f"Module {target_module} not found"}
+            payload.update(_ontology_binding(params))
+            print(json.dumps(payload, ensure_ascii=False))
             return
 
         # 递归抓取所有代码与配置证据
@@ -73,15 +85,19 @@ def main():
             s_file.write_text(json.dumps(current_shard_data), encoding='utf-8')
             shards.append(str(s_file))
 
-        print(json.dumps({
+        payload = {
             "status": "success",
             "shards": shards,
             "total_files": len(all_files),
             "instruction": "LLM: ALL physical evidence is sharded. You must digest every shard to maintain the no-loss mandate."
-        }, ensure_ascii=False))
+        }
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        payload = {"status": "error", "message": str(e)}
+        payload.update(_ontology_binding(params))
+        print(json.dumps(payload, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()
