@@ -720,24 +720,6 @@
         "has_frontmatter": true
       }
     },
-    "json-canvas": {
-      "name": "json-canvas",
-      "type": "skill",
-      "description": "Create and edit JSON Canvas files (.canvas) with nodes, edges, groups, and connections. Use when working with .canvas files, creating visual canvases, mind maps, flowcharts, or when the user mentions Canvas files in Obsidian.",
-      "path": "json-canvas",
-      "file": "json-canvas/SKILL.md",
-      "allowed_tools": [
-        "Read",
-        "Grep",
-        "Glob",
-        "Bash"
-      ],
-      "registered_at": "2026-11-17T10:01:44.254437",
-      "metadata": {
-        "file_format": "Skill file",
-        "has_frontmatter": true
-      }
-    },
     "knowledge-manager": {
       "name": "knowledge-manager",
       "type": "skill",
@@ -751,24 +733,6 @@
         "Bash"
       ],
       "registered_at": "2026-11-17T10:01:44.239325",
-      "metadata": {
-        "file_format": "Skill file",
-        "has_frontmatter": true
-      }
-    },
-    "obsidian-bases": {
-      "name": "obsidian-bases",
-      "type": "skill",
-      "description": "Create and edit Obsidian Bases (.base files) with views, filters, formulas, and summaries. Use when working with .base files, creating database-like views of notes, or when the user mentions Bases, table views, card views, filters, or formulas in Obsidian.",
-      "path": "obsidian-bases",
-      "file": "obsidian-bases/SKILL.md",
-      "allowed_tools": [
-        "Read",
-        "Grep",
-        "Glob",
-        "Bash"
-      ],
-      "registered_at": "2026-11-17T10:01:44.250322",
       "metadata": {
         "file_format": "Skill file",
         "has_frontmatter": true
