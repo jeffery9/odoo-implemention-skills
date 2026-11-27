@@ -112,7 +112,10 @@ class RealTreeTests(unittest.TestCase):
     def test_existing_skills_all_skipped(self):
         report = V.run(REPO_ROOT / "skills")
         self.assertEqual(report["status"], "pass")
-        self.assertGreaterEqual(report["manifest_skipped"], 21)
+        # 技能数由目录推导，归档离群技能后不再写死 21（A 级验收线 §6）。
+        skill_cards = list((REPO_ROOT / "skills").rglob("SKILL.md"))
+        self.assertGreater(len(skill_cards), 0)
+        self.assertEqual(report["manifest_skipped"], len(skill_cards))
         self.assertEqual(report["manifest_checked"], 1)
         self.assertEqual(report["issues"], [])
 

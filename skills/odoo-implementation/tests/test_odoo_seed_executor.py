@@ -14,8 +14,11 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
 import odoo_seed_executor as E  # noqa: E402
 
-# execute_action 接收内部键名（url/db/user/password），先经 load_credentials 规范化
-FULL_ENV = E.load_credentials({v: "x" for v in E.CREDENTIAL_ENV.values()})
+# 两种凭据形态不可混用：
+# - execute_action 直接接收内部键名（url/db/user/password）→ FULL_ENV
+# - run() 内部会再调 load_credentials()，必须传环境变量名（ODOO_URL/...）→ FULL_ENV_VARS
+FULL_ENV_VARS = {v: "x" for v in E.CREDENTIAL_ENV.values()}
+FULL_ENV = E.load_credentials(FULL_ENV_VARS)
 
 
 class FakeCommon:
@@ -56,7 +59,7 @@ class ExecutorTests(unittest.TestCase):
         # 即使注入会抛异常的 transport，dry-run 也不应调用
         report = E.run(plan([{"method": "create", "model": "res.partner",
                               "idempotency_key": "k", "args": []}]),
-                       "rpc", apply=False, env=FULL_ENV,
+                       "rpc", apply=False, env=FULL_ENV_VARS,
                        transport=transport, runner=None)
         self.assertEqual(report["status"], "pass")
         self.assertEqual(report["mode"], "dry_run")
@@ -78,7 +81,7 @@ class ExecutorTests(unittest.TestCase):
 
     def test_04_write_without_idempotency_blocked(self):
         report = E.run(plan([{"method": "write", "model": "res.partner", "args": []}]),
-                       "rpc", apply=True, env=FULL_ENV)
+                       "rpc", apply=True, env=FULL_ENV_VARS)
         self.assertEqual(report["status"], "blocked")
         codes = {i["code"] for i in report["issues"]}
         self.assertIn("CT-007", codes)
@@ -183,7 +186,7 @@ class ExecutorTests(unittest.TestCase):
     def test_14_json2_channel_and_credentials(self):
         """JSON-2 仅 19 可用、凭据用 API key；请求体为命名参数。"""
         report17 = E.run(plan([{"method": "search", "model": "x"}]), "json2",
-                         apply=False, env=FULL_ENV, odoo_version="17.0")
+                         apply=False, env=FULL_ENV_VARS, odoo_version="17.0")
         self.assertEqual(report17["status"], "error")
         self.assertIn("CT-003", {i["code"] for i in report17["issues"]})
 
@@ -324,14 +327,14 @@ class ExecutorTests(unittest.TestCase):
                   "idempotency_key": "SEED-TEST:partner:A",
                   "args": [[1], {"name": "A"}]}
         first_transport = Combo()
-        first = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV,
+        first = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV_VARS,
                       transport=first_transport, ledger_path=str(ledger))
         self.assertEqual(first["status"], "pass")
         self.assertEqual(len(first_transport.calls), 1)
         self.assertEqual(len(first["idempotency"]["recorded"]), 1)
 
         replay_transport = Combo()
-        second = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV,
+        second = E.run(plan([action]), "rpc", apply=True, env=FULL_ENV_VARS,
                        transport=replay_transport, ledger_path=str(ledger))
         self.assertEqual(second["status"], "pass")
         self.assertEqual(len(replay_transport.calls), 0)
@@ -347,7 +350,7 @@ class ExecutorTests(unittest.TestCase):
         ledger.write_text("{not json", encoding="utf-8")
         report = E.run(plan([{"method": "write", "model": "x",
                               "idempotency_key": "k"}]),
-                       "rpc", apply=True, env=FULL_ENV, ledger_path=str(ledger))
+                       "rpc", apply=True, env=FULL_ENV_VARS, ledger_path=str(ledger))
         self.assertEqual(report["status"], "error")
         self.assertIn("CT-011", {i["code"] for i in report["issues"]})
         self.assertEqual(report["executed_count"], 0)

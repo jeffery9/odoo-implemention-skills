@@ -51,8 +51,16 @@ def _forget_colliding_modules():
 
 
 def _snapshot(root: Path) -> set:
-    """技能目录的文件相对路径清单，用于检测运行时是否被写入。"""
-    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
+    """技能目录的文件相对路径清单，用于检测运行时是否被写入。
+
+    Python 字节码缓存不是框架运行时产物：CI 的 compileall 步骤会在 import 前
+    生成 __pycache__，不属于「运行时污染」，故与 copytree 的 _IGNORE 同口径排除。
+    """
+    return {
+        p.relative_to(root).as_posix()
+        for p in root.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    }
 
 
 class InstallLayoutTest(unittest.TestCase):
